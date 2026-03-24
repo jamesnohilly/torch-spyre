@@ -17,15 +17,16 @@ import tempfile
 from typing import Any, Union
 import os
 import subprocess
+import logging
 
 from torch._inductor.runtime.runtime_utils import cache_dir
 from torch_spyre._C import convert_artifacts
 from torch_spyre._inductor.codegen.superdsc import compile_op_spec
-from torch_spyre._inductor.logging_utils import get_inductor_logger, _get_env_bool
+from torch_spyre.logging import _get_env_bool
 from torch_spyre._inductor.op_spec import OpSpec, UnimplementedOp
 from .kernel_runner import SpyreSDSCKernelRunner, SpyreUnimplementedRunner
 
-logger = get_inductor_logger("sdsc_compile")
+logger = logging.getLogger(__name__)
 
 _SDSC_BUNDLE = _get_env_bool("SPYRE_SUPERDSC_BUNDLE")
 
@@ -33,7 +34,8 @@ _SDSC_BUNDLE = _get_env_bool("SPYRE_SUPERDSC_BUNDLE")
 def get_output_dir(kernel_name: str):
     spyre_dir = os.path.join(cache_dir(), "inductor-spyre")
     os.makedirs(spyre_dir, exist_ok=True)
-    kernel_output_dir = tempfile.mkdtemp(dir=spyre_dir, prefix=f"{kernel_name}_")
+    kernel_output_dir = tempfile.mkdtemp(
+        dir=spyre_dir, prefix=f"{kernel_name}_")
     return kernel_output_dir
 
 
@@ -47,7 +49,8 @@ class SpyreAsyncCompile:
         arg_mappings = []
         for ks in specs:
             if isinstance(ks, UnimplementedOp):
-                print(f"WARNING: Compiling unimplemented {ks.op} to runtime exception")
+                print(f"WARNING: Compiling unimplemented {
+                      ks.op} to runtime exception")
                 return SpyreUnimplementedRunner(kernel_name, ks.op)
 
             dt_sdsc, arg_map = compile_op_spec(kernel_name, ks)
@@ -88,7 +91,8 @@ class SpyreAsyncCompile:
             sdsc_dirs = []
             for sdsc in enumerate(sdscs):
                 kernel_output_dir = get_output_dir(kernel_name)
-                subdir = os.path.join(kernel_output_dir, "execute", kernel_name)
+                subdir = os.path.join(
+                    kernel_output_dir, "execute", kernel_name)
                 os.makedirs(subdir, exist_ok=True)
                 with open(os.path.join(subdir, "sdsc.json"), "w") as file:
                     logger.info(f"Generating {file.name}")

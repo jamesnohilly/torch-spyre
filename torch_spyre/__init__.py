@@ -225,6 +225,9 @@ def _autoload():
 
     # set the default backend debugging to quiet
     # enable these if you would like to see runtime/compiler logging
+    from torch_spyre.logging import _setup_logger
+    _setup_logger()
+
     os.environ.setdefault("TORCH_SENDNN_LOG", "CRITICAL")
     os.environ.setdefault("DT_DEEPRT_VERBOSE", "-1")
     os.environ.setdefault("DTLOG_LEVEL", "error")

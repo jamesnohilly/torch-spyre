@@ -47,11 +47,11 @@ from .pass_utils import (
 )
 from .views import compute_coordinates
 from .stickify import is_sparse
-from .logging_utils import get_inductor_logger
+
 from .op_spec import OpSpec, TensorArg
 import logging
 
-logger = get_inductor_logger("spyre_kernel")
+logger = logging.getLogger(__name__)
 
 
 class RValue(ABC):
@@ -462,15 +462,19 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
             V.graph.removed_buffers.add(name)
         op_info = {}
         if hasattr(self.current_node, "op_dim_splits"):
-            op_info["op_dim_splits"] = self.current_node.op_dim_splits  # type: ignore[union-attr]
+            # type: ignore[union-attr]
+            op_info["op_dim_splits"] = self.current_node.op_dim_splits
         if hasattr(self.current_node, "n_cores_used"):
-            op_info["n_cores_used"] = self.current_node.n_cores_used  # type: ignore[union-attr]
+            # type: ignore[union-attr]
+            op_info["n_cores_used"] = self.current_node.n_cores_used
 
         if logger.isEnabledFor(logging.DEBUG):
             value_type = type(value).__name__
             logger.debug(
-                f"kernel_store: {name} (type: {value_type}), shape={[int(s) for s in layout.size]}, "
-                f"device_size={list(layout.device_layout.device_size)}, op_info={op_info}"
+                f"kernel_store: {name} (type: {value_type}), shape={
+                    [int(s) for s in layout.size]}, "
+                f"device_size={list(layout.device_layout.device_size)}, op_info={
+                    op_info}"
             )
 
         if isinstance(value, UnimplementedOp):
@@ -481,12 +485,15 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
             args: list[TensorArg] = []
             for input in value.arguments:
                 if isinstance(input, TensorAccess):
-                    args.append(self.create_tensor_arg(True, input.name, input, di))
+                    args.append(self.create_tensor_arg(
+                        True, input.name, input, di))
                 else:
-                    raise Unsupported(f"unexpected argument {input} to {value.op}")
+                    raise Unsupported(f"unexpected argument {
+                                      input} to {value.op}")
             args.append(self.create_tensor_arg(False, real_dst_name, dst, di))
             op_info.update(value.op_info)
-            self.op_specs.append(create_op_spec(value.op, False, di, args, op_info))
+            self.op_specs.append(create_op_spec(
+                value.op, False, di, args, op_info))
         elif isinstance(value, TensorAccess):
             # Reshapes, transposes, and other dataops
             in_di = self.derive_dim_info(value)
@@ -513,7 +520,8 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                 # Broadcast: scalar input (all dims wildcards) expanding to non-scalar output.
                 op = CLONE_OP
                 in_di = out_di
-                args[0] = self.create_tensor_arg(True, value.name, value, in_di)
+                args[0] = self.create_tensor_arg(
+                    True, value.name, value, in_di)
             elif in_stl.device_size == out_stl.device_size:
                 # Clone: check that device layout is the same.
                 op = CLONE_OP
@@ -528,11 +536,15 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                 ]
                 # Reorder it_dim_map of the input to implement transpositions
                 (
-                    op_spec.args[0].it_dim_map[op_spec.op_info["transposed_dims"][0]],  # type: ignore[union-attr]
-                    op_spec.args[0].it_dim_map[op_spec.op_info["transposed_dims"][1]],  # type: ignore[union-attr]
+                    # type: ignore[union-attr]
+                    op_spec.args[0].it_dim_map[op_spec.op_info["transposed_dims"][0]],
+                    # type: ignore[union-attr]
+                    op_spec.args[0].it_dim_map[op_spec.op_info["transposed_dims"][1]],
                 ) = (
-                    op_spec.args[0].it_dim_map[op_spec.op_info["transposed_dims"][1]],  # type: ignore[union-attr]
-                    op_spec.args[0].it_dim_map[op_spec.op_info["transposed_dims"][0]],  # type: ignore[union-attr]
+                    # type: ignore[union-attr]
+                    op_spec.args[0].it_dim_map[op_spec.op_info["transposed_dims"][1]],
+                    # type: ignore[union-attr]
+                    op_spec.args[0].it_dim_map[op_spec.op_info["transposed_dims"][0]],
                 )
             self.op_specs.append(op_spec)
         else:
@@ -559,17 +571,23 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
             return
 
         op_info = {}
-        if hasattr(self.current_node.node.data, "op_info"):  # type: ignore[union-attr]
-            op_info.update(self.current_node.node.data.op_info)  # type: ignore[union-attr]
+        # type: ignore[union-attr]
+        if hasattr(self.current_node.node.data, "op_info"):
+            # type: ignore[union-attr]
+            op_info.update(self.current_node.node.data.op_info)
         if hasattr(self.current_node, "op_dim_splits"):
-            op_info["op_dim_splits"] = self.current_node.op_dim_splits  # type: ignore[union-attr]
+            # type: ignore[union-attr]
+            op_info["op_dim_splits"] = self.current_node.op_dim_splits
         if hasattr(self.current_node, "n_cores_used"):
-            op_info["n_cores_used"] = self.current_node.n_cores_used  # type: ignore[union-attr]
+            # type: ignore[union-attr]
+            op_info["n_cores_used"] = self.current_node.n_cores_used
 
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
-                f"kernel_store_reduction: {name} (op: {value.op}), shape={[int(s) for s in layout.size]}, "
-                f"device_size={list(layout.device_layout.device_size)}, op_info={op_info}"
+                f"kernel_store_reduction: {name} (op: {value.op}), shape={
+                    [int(s) for s in layout.size]}, "
+                f"device_size={list(layout.device_layout.device_size)}, op_info={
+                    op_info}"
             )
 
         if value.op == MATMUL_REDUCTION_OP:
@@ -578,7 +596,8 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                 or (not isinstance(value.arguments[0], TensorAccess))
                 or (not isinstance(value.arguments[1], TensorAccess))
             ):
-                raise Unsupported(f"invalid matmul arguments {value.arguments}")
+                raise Unsupported(f"invalid matmul arguments {
+                                  value.arguments}")
             x = value.arguments[0]
             y = value.arguments[1]
             di_x = self.derive_dim_info(x)
@@ -589,12 +608,14 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                 di = [di_x[0], DimensionInfo(wildcard_symbol(1), 1), di_y[1]]
                 # TODO:  The OpSpec we generate is correct, but the SDSC we generate
                 # will not compute the correct result.  Raise Unsupported to make this explicit.
-                raise Unsupported(f"matmul requires padding support: {value.arguments}")
+                raise Unsupported(f"matmul requires padding support: {
+                                  value.arguments}")
             elif len(di_x) == 2 and len(di_y) == 1:
                 di = [di_x[0], di_x[1], DimensionInfo(wildcard_symbol(1), 1)]
                 # TODO:  The OpSpec we generate is correct, but the SDSC we generate
                 # will not compute the correct result.  Raise Unsupported to make this explicit.
-                raise Unsupported(f"matmul requires padding support: {value.arguments}")
+                raise Unsupported(f"matmul requires padding support: {
+                                  value.arguments}")
             else:
                 raise Unsupported(f"degenerate matmul: {value.arguments}")
             args = [
@@ -602,14 +623,16 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                 self.create_tensor_arg(True, y.name, y, di),
                 self.create_tensor_arg(False, real_dst_name, dst, di),
             ]
-            self.op_specs.append(create_op_spec(value.op, True, di, args, op_info))
+            self.op_specs.append(create_op_spec(
+                value.op, True, di, args, op_info))
         elif value.op == BATCH_MATMUL_OP:
             if (
                 len(value.arguments) != 2
                 or (not isinstance(value.arguments[0], TensorAccess))
                 or (not isinstance(value.arguments[1], TensorAccess))
             ):
-                raise Unsupported(f"invalid batchmatmul arguments {value.arguments}")
+                raise Unsupported(f"invalid batchmatmul arguments {
+                                  value.arguments}")
             x = value.arguments[0]
             y = value.arguments[1]
             di_x = self.derive_dim_info(x)
@@ -642,7 +665,8 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                     ]
             elif len(di_x) == 3 and len(di_y) == 2:
                 if di_x[:2] == di_y:
-                    di = [di_x[0], di_x[1], di_x[2], DimensionInfo(self.wildcard, 1)]
+                    di = [di_x[0], di_x[1], di_x[2],
+                          DimensionInfo(self.wildcard, 1)]
                 elif di_x[2] == di_y[0]:
                     di = [di_x[0], di_x[1], di_x[2], di_y[1]]
                 else:
@@ -676,7 +700,8 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                 self.create_tensor_arg(True, y.name, y, di),
                 self.create_tensor_arg(False, real_dst_name, dst, di),
             ]
-            self.op_specs.append(create_op_spec(value.op, True, di, args, op_info))
+            self.op_specs.append(create_op_spec(
+                value.op, True, di, args, op_info))
         else:
             # All other reductions have exactly one input which is a tensor
             if (not len(value.arguments) == 1) or (
@@ -689,7 +714,8 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                 self.create_tensor_arg(True, x.name, x, di),
                 self.create_tensor_arg(False, real_dst_name, dst, di),
             ]
-            self.op_specs.append(create_op_spec(value.op, True, di, args, op_info))
+            self.op_specs.append(create_op_spec(
+                value.op, True, di, args, op_info))
 
     def derive_dim_info(self, access: TensorAccess) -> list[DimensionInfo]:
         """
@@ -722,8 +748,10 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                         logger.debug(f"op_spec: UnimplementedOp({op_spec.op})")
                     else:
                         logger.debug(
-                            f"op_spec: {op_spec.op}, is_reduction={op_spec.is_reduction}, "
-                            f"iteration_space={op_spec.iteration_space}, op_info={op_spec.op_info}"
+                            f"op_spec: {op_spec.op}, is_reduction={
+                                op_spec.is_reduction}, "
+                            f"iteration_space={op_spec.iteration_space}, op_info={
+                                op_spec.op_info}"
                         )
 
                 if isinstance(op_spec, UnimplementedOp):
@@ -733,10 +761,12 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                     with buf.indent():
                         buf.writeline(f"op='{op_spec.op}',")
                         buf.writeline(f"is_reduction={op_spec.is_reduction},")
-                        buf.writeline(f"iteration_space={op_spec.iteration_space!r},")
+                        buf.writeline(f"iteration_space={
+                                      op_spec.iteration_space!r},")
                         buf.writeline(
                             "iteration_space_dict={"
-                            + f"{', '.join([sympy.srepr(k) + ': ' + sympy.srepr(v) for k, v in op_spec.iteration_space_dict.items()])}"
+                            + f"{', '.join([sympy.srepr(k) + ': ' + sympy.srepr(v)
+                                           for k, v in op_spec.iteration_space_dict.items()])}"
                             + "},"
                         )
                         buf.writeline(f"op_info={op_spec.op_info!r},")
@@ -746,17 +776,22 @@ class SpyreKernel(SIMDKernel[CSEVariable]):
                                 buf.writeline("TensorArg(")
                                 with buf.indent():
                                     buf.writeline(
-                                        f"is_input={arg.is_input}, arg_index={arg.arg_index}, device_dtype={arg.device_dtype},"
-                                    )
-                                    buf.writeline(f"device_size={arg.device_size},")
-                                    buf.writeline(
-                                        f"# device_coordinates: {arg.device_coordinates}"
+                                        f"is_input={arg.is_input}, arg_index={
+                                            arg.arg_index}, device_dtype={arg.device_dtype},"
                                     )
                                     buf.writeline(
-                                        f"device_coordinates=[{', '.join([sympy.srepr(e) for e in arg.device_coordinates])}],"
+                                        f"device_size={arg.device_size},")
+                                    buf.writeline(
+                                        f"# device_coordinates: {
+                                            arg.device_coordinates}"
                                     )
                                     buf.writeline(
-                                        f"allocation={arg.allocation!r}, dtype={arg.dtype!r}, it_dim_map={arg.it_dim_map!r}, "
+                                        f"device_coordinates=[{
+                                            ', '.join([sympy.srepr(e) for e in arg.device_coordinates])}],"
+                                    )
+                                    buf.writeline(
+                                        f"allocation={arg.allocation!r}, dtype={
+                                            arg.dtype!r}, it_dim_map={arg.it_dim_map!r}, "
                                     )
                                     buf.writeline(
                                         f"device_layout={arg.device_layout!r}"
