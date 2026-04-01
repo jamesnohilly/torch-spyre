@@ -3568,10 +3568,10 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
         )
 
     def test_random_from_cpu(self):
-        """Test that tensor.random_from() fills a tensor with random values."""
+        """Test that tensor.random_(-5, 5) fills a tensor with random values in [-5, 5)."""
         gen = torch.manual_seed(42)
-        x_spyre = torch.zeros([3, 5], dtype=torch.float16, device="spyre")
-        y_cpu = torch.zeros([3, 5], dtype=torch.float16)
+        x_spyre = torch.zeros(3, 5, dtype=torch.float16, device="spyre")
+        y_cpu = torch.zeros(3, 5, dtype=torch.float16, device="cpu")
         y_cpu.random_(-5.0, 5.0, generator=gen)
         gen.manual_seed(42)
         x_spyre.random_(-5.0, 5.0, generator=gen)
