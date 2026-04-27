@@ -268,6 +268,8 @@ PYBIND11_MODULE(_C, m) {
   m.def("set_rng_state", &spyre::set_rng_state, py::arg("new_state"),
         py::arg("device") = -1);
   m.def("initial_seed", &spyre::initial_seed, py::arg("device") = -1);
+  m.def("_get_default_generator", &spyre::getDefaultSpyreGenerator,
+        py::arg("device") = -1);
 
   // Memory copy function
   m.def("copy_tensor", &spyre::spyre_copy_from,
