@@ -93,6 +93,7 @@ class _SpyreImpl:
         return self._in_bad_fork
 
     def manual_seed(self, seed: int, device: int | None = None) -> None:
+        self._lazy_init()
         _C = self._C
 
         idx = -1 if device is None else int(device)
@@ -100,15 +101,17 @@ class _SpyreImpl:
         default_generator.manual_seed(seed)
 
     def manual_seed_all(self, seed: int) -> None:
+        self._lazy_init()
         _C = self._C
 
         for idx in range(self.device_count()):
             default_generator = _C._get_default_generator(idx)
-            default_generator.manual_seed(seed, device=idx)
+            default_generator.manual_seed(seed)
 
     def set_rng_state(
         self, new_state: torch.Tensor, device: int | str | torch.device = "spyre"
     ) -> None:
+        self._lazy_init()
         _C = self._C
 
         if isinstance(device, str):
@@ -118,9 +121,10 @@ class _SpyreImpl:
 
         idx = self.current_device() if device.index is None else device.index
         default_generator = _C._get_default_generator(idx)
-        default_generator.set_rng_state(idx)
+        default_generator.set_state(new_state)
 
     def get_rng_state(self, device: int | str | torch.device = "spyre") -> torch.Tensor:
+        self._lazy_init()
         _C = self._C
 
         if isinstance(device, str):
@@ -130,9 +134,10 @@ class _SpyreImpl:
 
         idx = self.current_device() if device.index is None else device.index
         default_generator = _C._get_default_generator(idx)
-        return default_generator.get_rng_state(idx)
+        return default_generator.get_state()
 
     def initial_seed(self, device: int | str | torch.device = "spyre") -> int:
+        self._lazy_init()
         _C = self._C
 
         if isinstance(device, str):
