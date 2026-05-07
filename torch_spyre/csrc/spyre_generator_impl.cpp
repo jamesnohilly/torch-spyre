@@ -326,6 +326,7 @@ void manual_seed_all(uint64_t seed) {
  */
 uint64_t initial_seed(c10::DeviceIndex device_index) {
   auto gen = detail::getDefaultSpyreGenerator(device_index);
+  std::scoped_lock<std::mutex> lock(gen.mutex());
   return gen.current_seed();
 }
 
