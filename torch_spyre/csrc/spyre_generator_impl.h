@@ -22,6 +22,7 @@
 #include <c10/core/Device.h>
 #include <c10/core/GeneratorImpl.h>
 #include <c10/core/TensorImpl.h>
+#include <c10/util/CallOnce.h>
 #include <c10/util/intrusive_ptr.h>
 
 #include <cstdint>
