@@ -3581,9 +3581,7 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
         assert torch.all(x_cpu >= -5.0) and torch.all(x_cpu < 5.0), (
             f"random_ values out of range [-5, 5): {x_cpu}"
         )
-        assert not torch.all(x_cpu == x_cpu[0]), (
-            "random_ produced all identical values"
-        )
+        assert not torch.all(x_cpu == x_cpu[0]), "random_ produced all identical values"
 
     @pytest.mark.filterwarnings("ignore::torch_spyre.ops.fallbacks.FallbackWarning")
     def test_tril_cpu(self, x):
