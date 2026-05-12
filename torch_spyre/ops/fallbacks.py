@@ -268,7 +268,7 @@ def spyre__cos(input, **kwargs):
 # and would leave the original Spyre tensor unfilled.
 # The kernel itself is registered in ops.py.
 fallback_ops.append(aten.normal_.default)
-
+fallback_ops.append(getattr(aten.random_, "from"))
 
 @register_fallback([aten.embedding.default])
 def spyre__embedding(
