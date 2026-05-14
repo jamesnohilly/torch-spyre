@@ -1382,29 +1382,17 @@ _run_xdist_fallback() {
         echo "[spyre_run] WARNING: xdist fallback subshell exited abnormally for $_orig" >&2
     fi
 
+    # Propagate test failures from the xdist fallback run.
+    if [[ $_xexit -eq 1 ]]; then
+        [[ $OVERALL_EXIT -eq 0 ]] && OVERALL_EXIT=1
+    elif [[ $_xexit -ne 0 && $_xexit -ne 5 ]]; then
+        OVERALL_EXIT=$_xexit
+    fi
+
     # Inject XML tags into the shard produced by the xdist run.
     if [[ -n "$_shard_xml" && -f "$_shard_xml" ]]; then
         python3 -c "$_XML_INJECT_PY" "$_shard_xml" "$YAML_CONFIG" || true
     fi
-
-    case $_xexit in
-        0|5)
-            echo "[spyre_run] xdist fallback completed cleanly for: $(basename "$_orig")"
-            ;;
-        1)
-            echo "[spyre_run] xdist fallback: some tests failed in: $(basename "$_orig")" >&2
-            OVERALL_EXIT=1
-            ;;
-        130)
-            echo "[spyre_run] FATAL: interrupted (Ctrl-C) during xdist fallback." >&2
-            OVERALL_EXIT=130
-            exit 130
-            ;;
-        *)
-            echo "[spyre_run] xdist fallback exited with code $_xexit for: $(basename "$_orig")" >&2
-            [[ $OVERALL_EXIT -eq 0 ]] && OVERALL_EXIT=$_xexit
-            ;;
-    esac
 }
 
 for i in "${!RUN_FILES[@]}"; do
@@ -1531,19 +1519,25 @@ for i in "${!RUN_FILES[@]}"; do
     # Exit code handling
     #
     #   0   = all tests passed
-    #   1   = tests ran, some failed/errored  (reported by pytest; non-fatal)
-    #   5   = no tests collected              (warning only)
+    #   1   = tests ran, some failed/errored  (propagated → OVERALL_EXIT=1)
+    #   5   = no tests collected              (warning only; does not fail run)
     #   127 = command not found (python3/pytest missing) — fatal
     #   128+= signal/abnormal termination    — retry with -n1 (xdist fallback)
     #         Common: 139 (SIGSEGV), 255 (C abort).  130 (Ctrl-C) breaks loop.
     # -----------------------------------------------------------------------
     case $_exit in
-        0|1|5)
-            # Normal pytest outcomes (tests ran, some may have failed/xpassed).
-            # Individual results are visible in pytest output; run_test.sh
-            # always exits 0 for these so CI sees the report rather than a
-            # blanket failure.  Signal exits (>= 128) are the only codes that
-            # trigger the xdist fallback and propagate a non-zero exit.
+        0)
+            # All tests passed.
+            ;;
+        1)
+            # Some tests failed or errored — pytest already reported them.
+            # Propagate so CI marks the job as failed when mandatory_success
+            # tests do not pass.
+            [[ $OVERALL_EXIT -eq 0 ]] && OVERALL_EXIT=1
+            ;;
+        5)
+            # No tests collected — warn but do not fail the overall run.
+            echo "[spyre_run] WARNING: no tests collected for $original_file" >&2
             ;;
         127)
             echo "[spyre_run] FATAL: python3 or pytest not found (exit 127) for $original_file" >&2
