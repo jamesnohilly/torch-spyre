@@ -261,6 +261,7 @@ register_fallback_default(
 fallback_ops.append(aten.normal_.default)
 fallback_ops.append(getattr(aten.random_, "from"))
 
+
 @register_fallback(["spyre::max_dim_int64_fallback"])
 def spyre__max_dim_int64_fallback(input, dim, keepdim=False, **kwargs):
     """
