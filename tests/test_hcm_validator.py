@@ -77,21 +77,23 @@ class TestHostComputeMetadataValidation:
 
         assert not result.ok(), "Expected validation to fail for missing 'senConstants'"
         assert len(result.errors) == 1
-        assert "senConstants" in result.errors[0].message.lower()
-        assert "missing" in result.errors[0].message.lower()
+        assert "senConstants" in result.errors[0].message
+        assert "Missing required field" in result.errors[0].message
 
     def test_missing_both_fields_fails(self):
-        """Test that missing both required fields produces two error messages."""
+        """Test that missing both required fields produces error messages."""
         metadata_missing_both = {"other_field": "value"}
         metadata_str = json.dumps(metadata_missing_both)
 
         result = torch_spyre._C.validate_host_compute_metadata(metadata_str)
 
         assert not result.ok(), "Expected validation to fail for missing both fields"
-        assert len(result.errors) == 2
+        # Expect 3 errors: 1 unexpected field + 2 missing required fields
+        assert len(result.errors) == 3
         error_messages = [e.message for e in result.errors]
         assert any("vdci" in msg for msg in error_messages)
-        assert any("senconstants" in msg for msg in error_messages)
+        assert any("senConstants" in msg for msg in error_messages)
+        assert any("Unexpected field" in msg and "other_field" in msg for msg in error_messages)
 
     def test_malformed_json_fails(self):
         """Test that malformed JSON fails validation with clear error."""
@@ -101,7 +103,8 @@ class TestHostComputeMetadataValidation:
             torch_spyre._C.validate_host_compute_metadata(malformed_json)
 
         # The JSON parsing error should be raised before validation
-        assert "parse" in str(exc_info.value).lower() or "json" in str(exc_info.value).lower()
+        error_str = str(exc_info.value)
+        assert "parse" in error_str or "JSON" in error_str
 
     def test_non_object_json_fails(self):
         """Test that non-object JSON (e.g., array, string) fails validation."""
@@ -111,7 +114,7 @@ class TestHostComputeMetadataValidation:
 
         assert not result.ok(), "Expected validation to fail for non-object JSON"
         assert len(result.errors) == 1
-        assert "object" in result.errors[0].message.lower()
+        assert "JSON object" in result.errors[0].message
 
     def test_vdci_not_object_fails(self):
         """Test that 'vdci' field not being an object fails validation."""
@@ -126,7 +129,7 @@ class TestHostComputeMetadataValidation:
         assert not result.ok(), "Expected validation to fail when 'vdci' is not an object"
         assert len(result.errors) == 1
         assert "vdci" in result.errors[0].message
-        assert "object" in result.errors[0].message.lower()
+        assert "JSON object" in result.errors[0].message
 
     def test_senconstants_not_array_fails(self):
         """Test that 'senConstants' field not being an array fails validation."""
@@ -140,8 +143,8 @@ class TestHostComputeMetadataValidation:
 
         assert not result.ok(), "Expected validation to fail when 'senConstants' is not an array"
         assert len(result.errors) == 1
-        assert "senConstants" in result.errors[0].message.lower()
-        assert "array" in result.errors[0].message.lower()
+        assert "senConstants" in result.errors[0].message
+        assert "JSON array" in result.errors[0].message
 
     def test_both_fields_wrong_types_fails(self):
         """Test that both fields having wrong types produces two error messages."""
@@ -153,8 +156,8 @@ class TestHostComputeMetadataValidation:
         assert not result.ok(), "Expected validation to fail when both fields have wrong types"
         assert len(result.errors) == 2
         error_messages = [e.message for e in result.errors]
-        assert any("vdci" in msg and "object" in msg.lower() for msg in error_messages)
-        assert any("senConstants" in msg.lower() and "array" in msg.lower() for msg in error_messages)
+        assert any("vdci" in msg and "JSON object" in msg for msg in error_messages)
+        assert any("senConstants" in msg and "JSON array" in msg for msg in error_messages)
 
     def test_unexpected_fields_fail(self):
         """Test that unexpected fields beyond required ones are rejected."""
@@ -171,8 +174,8 @@ class TestHostComputeMetadataValidation:
         assert not result.ok(), "Expected validation to fail with unexpected fields"
         assert len(result.errors) == 2
         error_messages = [e.message for e in result.errors]
-        assert any("extra_field" in msg and "unexpected" in msg.lower() for msg in error_messages)
-        assert any("another_extra" in msg and "unexpected" in msg.lower() for msg in error_messages)
+        assert any("extra_field" in msg and "Unexpected field" in msg for msg in error_messages)
+        assert any("another_extra" in msg and "Unexpected field" in msg for msg in error_messages)
 
     def test_empty_required_fields_pass(self):
         """Test that empty object/array for required fields still pass validation."""
