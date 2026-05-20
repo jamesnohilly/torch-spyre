@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "job_plan.h"
+#include "hcm_validator.h"
 #include "logging.h"
 #include "prepare_kernel.h"
 #include "spyre_allocator.h"
@@ -159,6 +160,24 @@ PYBIND11_MODULE(_C, m) {
   m.def("free_runtime", &spyre::freeRuntime);
   m.def("launch_kernel", &spyre::launchKernel);
   m.def("encode_constant", &spyre::encodeConstant);
+
+  // Expose ValidationResult and validation function
+  py::class_<spyre::ValidationError>(m, "ValidationError")
+      .def_readonly("message", &spyre::ValidationError::message);
+
+  py::class_<spyre::ValidationResult>(m, "ValidationResult")
+      .def(py::init<>())
+      .def_readonly("errors", &spyre::ValidationResult::errors)
+      .def("ok", &spyre::ValidationResult::ok)
+      .def("add", &spyre::ValidationResult::add);
+
+  m.def(
+      "validate_host_compute_metadata",
+      [](const std::string& metadata_str) {
+        nlohmann::json metadata = nlohmann::json::parse(metadata_str);
+        return spyre::validateHostComputeMetadata(metadata);
+      },
+      py::arg("metadata"), "Validate host compute metadata JSON structure");
 
   py::class_<spyre::SpyreTensorLayout> dci_cls(m, "SpyreTensorLayout");
 
