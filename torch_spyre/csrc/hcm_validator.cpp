@@ -57,32 +57,22 @@ ValidationResult validateHostComputeMetadata(const nlohmann::json& metadata) {
     return result;
   }
 
-  // Validate that the given metadata is parseable JSON.
-  nlohmann::json parsed;
-  try {
-    parsed = nlohmann::json::parse(metadata);
-  }
-  catch (const nlohmann::json::parse_error& e) {
-    result.add("Malformed JSON: " + std::string(e.what()));
-    return result;
-  }
-
-  // Validate that the parsed JSON is an object.
-  if (!parsed.is_object()) {
+  // Validate that the metadata is a JSON object.
+  if (!metadata.is_object()) {
     result.add("Expected a JSON object");
     return result;
   }
 
-  // Check for unexpected fields and validate known fields inline.
-  for (const auto& [key, value] : parsed.items()) {
+  // Check for unexpected fields.
+  for (const auto& [key, value] : metadata.items()) {
     if (key != "vdci" && key != "senConstants") {
       result.add("Unexpected field '" + key + "' in metadata");
     }
   }
 
   // Validate required fields are present and have correct types.
-  validateRequiredObjectField(result, parsed, "vdci");
-  validateRequiredArrayField(result, parsed, "senConstants");
+  validateRequiredObjectField(result, metadata, "vdci");
+  validateRequiredArrayField(result, metadata, "senConstants");
 
   return result;
 }
