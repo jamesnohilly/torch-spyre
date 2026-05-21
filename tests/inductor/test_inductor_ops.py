@@ -4031,6 +4031,7 @@ class TestOps(unittest.TestCase, metaclass=ParameterizedTestMeta):
             f"random_ values out of range [-5, 5): {x_cpu}"
         )
         assert not torch.all(x_cpu == x_cpu[0]), "random_ produced all identical values"
+        torch.testing.assert_close(x_cpu, y_cpu, rtol=0.1, atol=0.1)
 
     @pytest.mark.filterwarnings("ignore::torch_spyre.ops.fallbacks.FallbackWarning")
     def test_tril_cpu(self, x):
