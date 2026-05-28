@@ -60,8 +60,8 @@ struct SpyreGeneratorImpl : public c10::GeneratorImpl {
   uint32_t random();
   uint64_t random64();
 
-  at::mt19937 engine();
-  void set_engine(at::mt19937 engine);
+  at::mt19937 engine() const;
+  void set_engine(const at::mt19937& engine);
 
  private:
   at::mt19937 engine_;

@@ -245,7 +245,7 @@ uint64_t SpyreGeneratorImpl::random64() {
 /**
  * Get the engine of the SpyreGeneratorImpl
  */
-at::mt19937 SpyreGeneratorImpl::engine() {
+at::mt19937 SpyreGeneratorImpl::engine() const {
   return engine_;
 }
 
@@ -254,7 +254,7 @@ at::mt19937 SpyreGeneratorImpl::engine() {
  *
  * See Note [Acquire lock when using random generators]
  */
-void SpyreGeneratorImpl::set_engine(at::mt19937 engine) {
+void SpyreGeneratorImpl::set_engine(const at::mt19937& engine) {
   engine_ = engine;
 }
 
