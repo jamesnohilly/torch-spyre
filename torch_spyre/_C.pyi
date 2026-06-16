@@ -35,6 +35,8 @@ __all__: list[str] = [
     "spyre_empty_with_layout",
     "start_runtime",
     "to_with_layout",
+    "cpu_state_to_spyre_state",
+    "spyre_state_to_cpu_state",
 ]
 
 class DataFormats:
@@ -373,3 +375,40 @@ def spyre_empty_with_layout(
 ) -> torch.Tensor: ...
 def start_runtime() -> None: ...
 def to_with_layout(arg0: torch.Tensor, arg1: SpyreTensorLayout) -> torch.Tensor: ...
+def cpu_state_to_spyre_state(cpu_state: torch.Tensor) -> torch.Tensor:
+    """
+    Convert CPU generator state to Spyre generator state.
+
+    The CPU generator state includes additional fields for caching normal distribution
+    samples (Box-Muller method). This function extracts the core RNG state by removing
+    those cache fields.
+
+    Args:
+        cpu_state: CPU generator state tensor (5056 bytes)
+
+    Returns:
+        Spyre-compatible state tensor (5016 bytes)
+
+    Raises:
+        RuntimeError: If input state size is incorrect or dtype is not Byte
+    """
+    ...
+
+def spyre_state_to_cpu_state(spyre_state: torch.Tensor) -> torch.Tensor:
+    """
+    Convert Spyre generator state to CPU generator state.
+
+    The Spyre generator state is smaller than the CPU state because it doesn't include
+    the normal distribution cache fields. This function pads the Spyre state with zeros
+    to match the CPU state size.
+
+    Args:
+        spyre_state: Spyre generator state tensor (5016 bytes)
+
+    Returns:
+        CPU-compatible state tensor (5056 bytes)
+
+    Raises:
+        RuntimeError: If input state size is incorrect or dtype is not Byte
+    """
+    ...

@@ -17,6 +17,7 @@
 #include "spyre_generator_impl.h"
 
 #include <ATen/ATen.h>
+#include <ATen/CPUGeneratorImpl.h>
 #include <ATen/EmptyTensor.h>
 #include <ATen/Utils.h>
 #include <ATen/core/Generator.h>
@@ -328,6 +329,63 @@ uint64_t initial_seed(c10::DeviceIndex device_index) {
   auto gen = detail::getDefaultSpyreGenerator(device_index);
   std::scoped_lock<std::mutex> lock(gen.mutex());
   return gen.current_seed();
+}
+
+/**
+ * Convert CPU generator state to Spyre generator state
+ *
+ * The CPU generator includes additional fields for caching normal distribution
+ * samples. This function extracts the core RNG state by taking only the Spyre
+ * state size.
+ */
+at::Tensor SpyreGeneratorImpl::cpu_state_to_spyre_state(
+    const at::Tensor& cpu_state) {
+  // Use sizeof to get actual structure sizes at compile time
+  constexpr size_t spyre_size = sizeof(SpyreGeneratorImplState);
+  constexpr size_t cpu_size = sizeof(at::detail::CPUGeneratorImplState);
+
+  // Validate input size matches expected CPU generator state size
+  TORCH_CHECK(cpu_state.numel() == cpu_size,
+              "Expected CPU generator state of size ", cpu_size, " but got ",
+              cpu_state.numel());
+
+  TORCH_CHECK(cpu_state.dtype() == at::kByte,
+              "Expected CPU generator state to be of type Byte");
+
+  // Extract the first spyre_size bytes (core RNG state without normal cache)
+  // The difference (cpu_size - spyre_size) contains the normal distribution
+  // cache
+  return cpu_state.slice(0, 0, spyre_size).clone();
+}
+
+/**
+ * Convert Spyre generator state to CPU generator state
+ *
+ * This function pads the Spyre state with zeros for the normal distribution
+ * cache. The CPU state size is determined from the CPUGeneratorImplState
+ * structure.
+ */
+at::Tensor SpyreGeneratorImpl::spyre_state_to_cpu_state(
+    const at::Tensor& spyre_state) {
+  // Use sizeof to get actual structure sizes at compile time
+  constexpr size_t spyre_size = sizeof(SpyreGeneratorImplState);
+  constexpr size_t cpu_size = sizeof(at::detail::CPUGeneratorImplState);
+
+  TORCH_CHECK(spyre_state.numel() == spyre_size,
+              "Expected Spyre generator state of size ", spyre_size,
+              " but got ", spyre_state.numel());
+
+  TORCH_CHECK(spyre_state.dtype() == at::kByte,
+              "Expected Spyre generator state to be of type Byte");
+
+  // Create CPU state tensor and copy Spyre state into first spyre_size bytes
+  // The remaining (cpu_size - spyre_size) bytes are zero-initialized for the
+  // normal cache
+  auto cpu_state = at::zeros({static_cast<int64_t>(cpu_size)},
+                             at::TensorOptions().dtype(at::kByte));
+  cpu_state.slice(0, 0, spyre_size).copy_(spyre_state);
+
+  return cpu_state;
 }
 
 }  // namespace spyre

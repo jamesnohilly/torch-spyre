@@ -63,6 +63,10 @@ struct SpyreGeneratorImpl : public c10::GeneratorImpl {
   at::mt19937 engine() const;
   void set_engine(const at::mt19937& engine);
 
+  // CPU/Spyre state conversion helpers
+  static at::Tensor cpu_state_to_spyre_state(const at::Tensor& cpu_state);
+  static at::Tensor spyre_state_to_cpu_state(const at::Tensor& spyre_state);
+
  private:
   at::mt19937 engine_;
 

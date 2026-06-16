@@ -335,6 +335,18 @@ PYBIND11_MODULE(_C, m) {
   m.def("_get_default_generator", &spyre::detail::getDefaultSpyreGenerator,
         py::arg("device") = -1);
 
+  // Generator state conversion functions
+  m.def("cpu_state_to_spyre_state",
+        &spyre::SpyreGeneratorImpl::cpu_state_to_spyre_state,
+        py::arg("cpu_state"),
+        "Convert CPU generator state (5056 bytes) to Spyre generator state "
+        "(5016 bytes)");
+  m.def("spyre_state_to_cpu_state",
+        &spyre::SpyreGeneratorImpl::spyre_state_to_cpu_state,
+        py::arg("spyre_state"),
+        "Convert Spyre generator state (5016 bytes) to CPU generator state "
+        "(5056 bytes)");
+
   // Memory copy function
   m.def("copy_tensor", &spyre::spyre_copy_from,
         "Copy tensor between host and device using DMA", py::arg("self"),
