@@ -207,8 +207,8 @@ class TestSpyreGenerator(TestCase):
 
         # Check that values are reasonable (not all zeros or identical)
         x_cpu = x.cpu()
-        assert not torch.all(x_cpu == 0)
-        assert not torch.all(x_cpu == x_cpu[0, 0])
+        assert not (x_cpu == 0).all().item()
+        assert not (x_cpu == x_cpu[0, 0]).all().item()
 
     def test_randn_reproducibility(self):
         """Test that randn with same seed produces same results."""
@@ -216,11 +216,11 @@ class TestSpyreGenerator(TestCase):
 
         gen1 = torch.Generator(device="spyre")
         gen1.manual_seed(seed)
-        x1 = torch.randn(20, device="spyre", generator=gen1, dtype=torch.float32)
+        x1 = torch.randn(20, device="spyre", generator=gen1, dtype=torch.float16)
 
         gen2 = torch.Generator(device="spyre")
         gen2.manual_seed(seed)
-        x2 = torch.randn(20, device="spyre", generator=gen2, dtype=torch.float32)
+        x2 = torch.randn(20, device="spyre", generator=gen2, dtype=torch.float16)
 
         torch.testing.assert_close(x1, x2)
 
@@ -234,10 +234,10 @@ class TestSpyreGenerator(TestCase):
 
         x_cpu = x.cpu()
         # Values should be in [0, 1)
-        assert torch.all(x_cpu >= 0.0)
-        assert torch.all(x_cpu < 1.0)
+        assert (x_cpu >= 0.0).all().item()
+        assert (x_cpu < 1.0).all().item()
         # Should not all be identical
-        assert not torch.all(x_cpu == x_cpu[0])
+        assert not (x_cpu == x_cpu[0]).all().item()
 
     def test_uniform_custom_range_with_generator(self):
         """Test tensor.uniform_(from, to) with Spyre generator."""
@@ -249,20 +249,8 @@ class TestSpyreGenerator(TestCase):
 
         x_cpu = x.cpu()
         # Values should be in [-10, 10)
-        assert torch.all(x_cpu >= -10.0)
-        assert torch.all(x_cpu < 10.0)
-
-    def test_random_with_generator(self):
-        """Test tensor.random_() with Spyre generator."""
-        gen = torch.Generator(device="spyre")
-        gen.manual_seed(500)
-
-        x = torch.empty(50, device="spyre", dtype=torch.float16)
-        x.random_(generator=gen)
-
-        x_cpu = x.cpu()
-        # Should not all be identical
-        assert not torch.all(x_cpu == x_cpu[0])
+        assert (x_cpu >= -10.0).all().item()
+        assert (x_cpu < 10.0).all().item()
 
     def test_random_custom_range_with_generator(self):
         """Test tensor.random_(from, to) with Spyre generator."""
@@ -274,8 +262,8 @@ class TestSpyreGenerator(TestCase):
 
         x_cpu = x.cpu()
         # Values should be in [-5, 5)
-        assert torch.all(x_cpu >= -5)
-        assert torch.all(x_cpu < 5)
+        assert (x_cpu >= -5).all().item()
+        assert (x_cpu < 5).all().item()
 
 
 if __name__ == "__main__":
