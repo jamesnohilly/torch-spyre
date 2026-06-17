@@ -73,11 +73,11 @@ class TestSpyreGenerator(TestCase):
         gen.manual_seed(seed)
 
         # Generate some random numbers
-        x1 = torch.randn(10, device="spyre", generator=gen)
+        x1 = torch.randn(10, device="spyre", generator=gen, dtype=torch.float16)
 
         # Reset to same seed
         gen.manual_seed(seed)
-        x2 = torch.randn(10, device="spyre", generator=gen)
+        x2 = torch.randn(10, device="spyre", generator=gen, dtype=torch.float16)
 
         # Should produce identical results
         torch.testing.assert_close(x1, x2)
@@ -109,14 +109,14 @@ class TestSpyreGenerator(TestCase):
         gen1.manual_seed(456)
 
         # Generate some numbers and save state
-        _ = torch.randn(5, device="spyre", generator=gen1)
+        _ = torch.randn(5, device="spyre", generator=gen1, dtype=torch.float16)
         state = gen1.get_state()
-        x2 = torch.randn(5, device="spyre", generator=gen1)
+        x2 = torch.randn(5, device="spyre", generator=gen1, dtype=torch.float16)
 
         # Create new generator and restore state
         gen2 = torch.Generator(device="spyre")
         gen2.set_state(state)
-        x3 = torch.randn(5, device="spyre", generator=gen2)
+        x3 = torch.randn(5, device="spyre", generator=gen2, dtype=torch.float16)
 
         # x3 should match x2 (same state after x1)
         torch.testing.assert_close(x2, x3)
@@ -128,15 +128,24 @@ class TestSpyreGenerator(TestCase):
         gen1.manual_seed(seed)
 
         # Generate sequence
-        _ = [torch.randn(3, device="spyre", generator=gen1) for _ in range(3)]
+        _ = [
+            torch.randn(3, device="spyre", generator=gen1, dtype=torch.float16)
+            for _ in range(3)
+        ]
         state = gen1.get_state()
 
         # Continue generating
-        seq2 = [torch.randn(3, device="spyre", generator=gen1) for _ in range(3)]
+        seq2 = [
+            torch.randn(3, device="spyre", generator=gen1, dtype=torch.float16)
+            for _ in range(3)
+        ]
 
         # Restore state and regenerate
         gen1.set_state(state)
-        seq3 = [torch.randn(3, device="spyre", generator=gen1) for _ in range(3)]
+        seq3 = [
+            torch.randn(3, device="spyre", generator=gen1, dtype=torch.float16)
+            for _ in range(3)
+        ]
 
         # seq3 should match seq2
         for t2, t3 in zip(seq2, seq3):
@@ -153,14 +162,14 @@ class TestSpyreGenerator(TestCase):
         gen2.set_state(state)
 
         # Both should produce same sequence initially
-        x1 = torch.randn(5, device="spyre", generator=gen1)
-        x2 = torch.randn(5, device="spyre", generator=gen2)
+        x1 = torch.randn(5, device="spyre", generator=gen1, dtype=torch.float16)
+        x2 = torch.randn(5, device="spyre", generator=gen2, dtype=torch.float16)
         torch.testing.assert_close(x1, x2)
 
         # After advancing gen1, they should diverge
-        _ = torch.randn(5, device="spyre", generator=gen1)
-        y1 = torch.randn(5, device="spyre", generator=gen1)
-        y2 = torch.randn(5, device="spyre", generator=gen2)
+        _ = torch.randn(5, device="spyre", generator=gen1, dtype=torch.float16)
+        y1 = torch.randn(5, device="spyre", generator=gen1, dtype=torch.float16)
+        y2 = torch.randn(5, device="spyre", generator=gen2, dtype=torch.float16)
 
         # y1 and y2 should be different
         with pytest.raises(AssertionError):
