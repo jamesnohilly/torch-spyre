@@ -65,7 +65,7 @@ class TestSpyreGenerator(TestCase):
 
     def test_generator_device_index(self):
         """Test generator with specific device index."""
-        if torch_spyre.device_count() > 0:
+        if torch.spyre.device_count() > 0:
             gen = torch.Generator(device="spyre:0")
             self.assertEqual(gen.device.type, "spyre")
             self.assertEqual(gen.device.index, 0)
@@ -88,12 +88,12 @@ class TestSpyreGenerator(TestCase):
 
     def test_manual_seed_all(self):
         """Test manual_seed_all sets seed for all devices."""
-        if torch_spyre.device_count() > 1:
+        if torch.spyre.device_count() > 1:
             seed = 999
             torch_spyre.manual_seed_all(seed)
 
             # Verify all devices have the same seed
-            for i in range(torch_spyre.device_count()):
+            for i in range(torch.spyre.device_count()):
                 initial = torch_spyre.initial_seed(device=i)
                 self.assertEqual(initial, seed)
 
@@ -416,7 +416,7 @@ class TestSpyreGenerator(TestCase):
         self.assertEqual(initial, seed)
 
     @pytest.mark.skipif(
-        torch_spyre.device_count() < 2, reason="Requires at least 2 Spyre devices"
+        torch.spyre.device_count() < 2, reason="Requires at least 2 Spyre devices"
     )
     def test_multi_device_generators(self):
         """Test generators on multiple devices."""
