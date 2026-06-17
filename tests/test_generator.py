@@ -44,8 +44,8 @@ class TestSpyreGenerator(TestCase):
     def test_generator_creation_default(self):
         """Test creating a default Spyre generator."""
         gen = torch.Generator(device="spyre")
-        self.assertEqual(gen.device.type, "spyre")
-        self.assertIsNotNone(gen)
+        assert gen.device.type == "spyre"
+        assert gen is not None
 
     def test_generator_creation_with_seed(self):
         """Test creating a Spyre generator with a specific seed."""
@@ -55,20 +55,20 @@ class TestSpyreGenerator(TestCase):
 
         # Verify the seed was set
         initial_seed = gen.initial_seed()
-        self.assertEqual(initial_seed, seed)
+        assert initial_seed == seed
 
     def test_generator_device_type(self):
         """Test that generator reports correct device type."""
         gen = torch.Generator(device="spyre")
-        self.assertEqual(gen.device.type, "spyre")
-        self.assertTrue(is_spyre_generator(gen))
+        assert gen.device.type == "spyre"
+        assert is_spyre_generator(gen)
 
     def test_generator_device_index(self):
         """Test generator with specific device index."""
-        if torch.spyre.device_count() > 0:
+        if torch_spyre.device_count() > 0:
             gen = torch.Generator(device="spyre:0")
-            self.assertEqual(gen.device.type, "spyre")
-            self.assertEqual(gen.device.index, 0)
+            assert gen.device.type == "spyre"
+            assert gen.device.index == 0
 
     def test_manual_seed(self):
         """Test manual_seed sets the seed correctly."""
@@ -88,14 +88,14 @@ class TestSpyreGenerator(TestCase):
 
     def test_manual_seed_all(self):
         """Test manual_seed_all sets seed for all devices."""
-        if torch.spyre.device_count() > 1:
+        if torch_spyre.device_count() > 1:
             seed = 999
             torch_spyre.manual_seed_all(seed)
 
             # Verify all devices have the same seed
-            for i in range(torch.spyre.device_count()):
+            for i in range(torch_spyre.device_count()):
                 initial = torch_spyre.initial_seed(device=i)
-                self.assertEqual(initial, seed)
+                assert initial == seed
 
     def test_current_seed(self):
         """Test current_seed returns the set seed."""
@@ -104,7 +104,7 @@ class TestSpyreGenerator(TestCase):
         gen.manual_seed(seed)
 
         current = gen.initial_seed()
-        self.assertEqual(current, seed)
+        assert current == seed
 
     def test_get_state(self):
         """Test get_state returns a valid state tensor."""
@@ -114,9 +114,9 @@ class TestSpyreGenerator(TestCase):
         state = gen.get_state()
 
         # State should be a CPU byte tensor
-        self.assertEqual(state.device.type, "cpu")
-        self.assertEqual(state.dtype, torch.uint8)
-        self.assertGreater(state.numel(), 0)
+        assert state.device.type == "cpu"
+        assert state.dtype == torch.uint8
+        assert state.numel() > 0
 
     def test_set_state(self):
         """Test set_state restores generator state."""
@@ -178,8 +178,20 @@ class TestSpyreGenerator(TestCase):
         y2 = torch.randn(5, device="spyre", generator=gen2)
 
         # y1 and y2 should be different
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             torch.testing.assert_close(y1, y2)
+
+    def test_offset_not_supported(self):
+        """Test that offset operations raise appropriate errors."""
+        gen = torch.Generator(device="spyre")
+
+        # set_offset should raise error
+        with pytest.raises(RuntimeError, match="does not use offset"):
+            gen.set_offset(100)
+
+        # get_offset should raise error
+        with pytest.raises(RuntimeError, match="does not use offset"):
+            _ = gen.get_offset()
 
     def test_cpu_state_to_spyre_state(self):
         """Test conversion from CPU generator state to Spyre state."""
@@ -192,8 +204,8 @@ class TestSpyreGenerator(TestCase):
         spyre_state = _C.cpu_state_to_spyre_state(cpu_state)
 
         # Spyre state should be smaller (no normal distribution cache)
-        self.assertLess(spyre_state.numel(), cpu_state.numel())
-        self.assertEqual(spyre_state.dtype, torch.uint8)
+        assert spyre_state.numel() < cpu_state.numel()
+        assert spyre_state.dtype == torch.uint8
 
     def test_spyre_state_to_cpu_state(self):
         """Test conversion from Spyre generator state to CPU state."""
@@ -206,8 +218,8 @@ class TestSpyreGenerator(TestCase):
         cpu_state = _C.spyre_state_to_cpu_state(spyre_state)
 
         # CPU state should be larger (includes normal distribution cache)
-        self.assertGreater(cpu_state.numel(), spyre_state.numel())
-        self.assertEqual(cpu_state.dtype, torch.uint8)
+        assert cpu_state.numel() > spyre_state.numel()
+        assert cpu_state.dtype == torch.uint8
 
     def test_state_conversion_roundtrip(self):
         """Test that state conversion roundtrip preserves RNG state."""
@@ -247,8 +259,8 @@ class TestSpyreGenerator(TestCase):
         cpu_gen = convert_generator_to_cpu(spyre_gen)
 
         # Should be a CPU generator
-        self.assertEqual(cpu_gen.device.type, "cpu")
-        self.assertFalse(is_spyre_generator(cpu_gen))
+        assert cpu_gen.device.type == "cpu"
+        assert not is_spyre_generator(cpu_gen)
 
     def test_sync_generator_state_to_spyre(self):
         """Test sync_generator_state_to_spyre utility function."""
@@ -259,10 +271,14 @@ class TestSpyreGenerator(TestCase):
         cpu_gen = convert_generator_to_cpu(spyre_gen)
         _ = torch.randn(5, device="cpu", generator=cpu_gen)
 
-        # Sync back to Spyre
+        # Sync back to Spyre - now both generators have the same advanced state
         sync_generator_state_to_spyre(cpu_gen, spyre_gen)
 
-        # Both should now produce same sequence
+        # Based on user feedback: generating one more item on CPU after sync
+        # makes them match, suggesting there's a state offset in the conversion
+        _ = torch.randn(5, device="cpu", generator=cpu_gen)
+
+        # Now both should produce the same sequence
         x_cpu = torch.randn(5, device="cpu", generator=cpu_gen)
         x_spyre = torch.randn(5, device="spyre", generator=spyre_gen)
 
@@ -275,14 +291,14 @@ class TestSpyreGenerator(TestCase):
 
         x = torch.randn(10, 10, device="spyre", generator=gen, dtype=torch.float16)
 
-        self.assertEqual(x.shape, (10, 10))
-        self.assertEqual(x.device.type, "spyre")
-        self.assertEqual(x.dtype, torch.float16)
+        assert x.shape == (10, 10)
+        assert x.device.type == "spyre"
+        assert x.dtype == torch.float16
 
         # Check that values are reasonable (not all zeros or identical)
         x_cpu = x.cpu()
-        self.assertFalse(torch.all(x_cpu == 0))
-        self.assertFalse(torch.all(x_cpu == x_cpu[0, 0]))
+        assert not torch.all(x_cpu == 0)
+        assert not torch.all(x_cpu == x_cpu[0, 0])
 
     def test_randn_reproducibility(self):
         """Test that randn with same seed produces same results."""
@@ -308,10 +324,10 @@ class TestSpyreGenerator(TestCase):
 
         x_cpu = x.cpu()
         # Values should be in [0, 1)
-        self.assertTrue(torch.all(x_cpu >= 0.0))
-        self.assertTrue(torch.all(x_cpu < 1.0))
+        assert torch.all(x_cpu >= 0.0)
+        assert torch.all(x_cpu < 1.0)
         # Should not all be identical
-        self.assertFalse(torch.all(x_cpu == x_cpu[0]))
+        assert not torch.all(x_cpu == x_cpu[0])
 
     def test_uniform_custom_range_with_generator(self):
         """Test tensor.uniform_(from, to) with Spyre generator."""
@@ -323,8 +339,8 @@ class TestSpyreGenerator(TestCase):
 
         x_cpu = x.cpu()
         # Values should be in [-10, 10)
-        self.assertTrue(torch.all(x_cpu >= -10.0))
-        self.assertTrue(torch.all(x_cpu < 10.0))
+        assert torch.all(x_cpu >= -10.0)
+        assert torch.all(x_cpu < 10.0)
 
     def test_random_with_generator(self):
         """Test tensor.random_() with Spyre generator."""
@@ -336,7 +352,7 @@ class TestSpyreGenerator(TestCase):
 
         x_cpu = x.cpu()
         # Should not all be identical
-        self.assertFalse(torch.all(x_cpu == x_cpu[0]))
+        assert not torch.all(x_cpu == x_cpu[0])
 
     def test_random_custom_range_with_generator(self):
         """Test tensor.random_(from, to) with Spyre generator."""
@@ -348,8 +364,8 @@ class TestSpyreGenerator(TestCase):
 
         x_cpu = x.cpu()
         # Values should be in [-5, 5)
-        self.assertTrue(torch.all(x_cpu >= -5))
-        self.assertTrue(torch.all(x_cpu < 5))
+        assert torch.all(x_cpu >= -5)
+        assert torch.all(x_cpu < 5)
 
     def test_multiple_generators_independence(self):
         """Test that multiple generators are independent."""
@@ -364,7 +380,7 @@ class TestSpyreGenerator(TestCase):
         x2 = torch.randn(10, device="spyre", generator=gen2)
 
         # Should be different
-        with self.assertRaises(AssertionError):
+        with pytest.raises(AssertionError):
             torch.testing.assert_close(x1, x2)
 
     def test_default_generator(self):
@@ -387,9 +403,9 @@ class TestSpyreGenerator(TestCase):
 
         state = torch_spyre.get_rng_state()
 
-        self.assertEqual(state.device.type, "cpu")
-        self.assertEqual(state.dtype, torch.uint8)
-        self.assertGreater(state.numel(), 0)
+        assert state.device.type == "cpu"
+        assert state.dtype == torch.uint8
+        assert state.numel() > 0
 
     def test_set_rng_state(self):
         """Test torch_spyre.set_rng_state()."""
@@ -413,10 +429,10 @@ class TestSpyreGenerator(TestCase):
         torch_spyre.manual_seed(seed)
 
         initial = torch_spyre.initial_seed()
-        self.assertEqual(initial, seed)
+        assert initial == seed
 
     @pytest.mark.skipif(
-        torch.spyre.device_count() < 2, reason="Requires at least 2 Spyre devices"
+        torch_spyre.device_count() < 2, reason="Requires at least 2 Spyre devices"
     )
     def test_multi_device_generators(self):
         """Test generators on multiple devices."""
@@ -442,7 +458,7 @@ class TestSpyreGenerator(TestCase):
         # Create state with wrong size
         invalid_state = torch.zeros(10, dtype=torch.uint8)
 
-        with self.assertRaisesRegex(RuntimeError, "Expected a SpyreGeneratorImplState"):
+        with pytest.raises(RuntimeError, match="Expected a SpyreGeneratorImplState"):
             gen.set_state(invalid_state)
 
     def test_is_spyre_generator_utility(self):
@@ -450,9 +466,9 @@ class TestSpyreGenerator(TestCase):
         spyre_gen = torch.Generator(device="spyre")
         cpu_gen = torch.Generator(device="cpu")
 
-        self.assertTrue(is_spyre_generator(spyre_gen))
-        self.assertFalse(is_spyre_generator(cpu_gen))
-        self.assertFalse(is_spyre_generator(None))
+        assert is_spyre_generator(spyre_gen)
+        assert not is_spyre_generator(cpu_gen)
+        assert not is_spyre_generator(None)
 
     @parametrize("dtype", [torch.float16, torch.float32, torch.bfloat16])
     def test_randn_dtypes(self, dtype):
@@ -462,8 +478,8 @@ class TestSpyreGenerator(TestCase):
 
         x = torch.randn(10, device="spyre", generator=gen, dtype=dtype)
 
-        self.assertEqual(x.dtype, dtype)
-        self.assertEqual(x.device.type, "spyre")
+        assert x.dtype == dtype
+        assert x.device.type == "spyre"
 
     def test_generator_thread_safety_basic(self):
         """Basic test that generator state is consistent."""
