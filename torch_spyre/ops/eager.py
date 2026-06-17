@@ -14,6 +14,7 @@
 
 import torch
 import torch_spyre.ops.fallbacks  # noqa: F401
+import torch_spyre.device.generator as gen_util
 from .fallbacks import _get_op_overloads
 import warnings
 import functools
@@ -140,7 +141,19 @@ def spyre__normal_(self, mean=0.0, std=1.0, *, generator=None):
 
     # Create a new tensor on cpu itself to avoid unnecessary data copy.
     cpu_tmp = torch.empty_like(self, device="cpu", memory_format=torch.preserve_format)
-    cpu_tmp.normal_(mean, std, generator=generator)
+
+    # Handle generator conversion if needed
+    is_spyre_gen = gen_util.is_spyre_generator(generator)
+    cpu_generator = (
+        gen_util.convert_generator_to_cpu(generator) if is_spyre_gen else generator
+    )
+
+    cpu_tmp.normal_(mean, std, generator=cpu_generator)
+
+    # Sync generator state back to Spyre if needed
+    if is_spyre_gen:
+        gen_util.sync_generator_state_to_spyre(cpu_generator, generator)
+
     self.copy_(cpu_tmp)
     return self
 
@@ -158,34 +171,21 @@ def spyre__zero_(self: torch.Tensor) -> torch.Tensor:
 
 @torch.library.register_kernel("aten::uniform_", "spyre")  # type:ignore
 def spyre__uniform_(self, from_=0.0, to=1.0, generator=None):
-    import torch_spyre._C as _C
-
     # Create a new tensor on cpu
     cpu_tmp = torch.empty_like(self, device="cpu", memory_format=torch.preserve_format)
 
-    # If a Spyre generator is provided, convert its state to CPU format
-    cpu_generator = None
-    if generator is not None and generator.device.type == "spyre":
-        # Create a CPU generator and sync the state from Spyre generator
-        cpu_generator = torch.Generator(device="cpu")
-        spyre_state = generator.get_state()
+    # Handle generator conversion if needed
+    is_spyre_gen = gen_util.is_spyre_generator(generator)
+    cpu_generator = (
+        gen_util.convert_generator_to_cpu(generator) if is_spyre_gen else generator
+    )
 
-        # Convert Spyre state to CPU state
-        cpu_state = _C.spyre_state_to_cpu_state(spyre_state)
-        cpu_generator.set_state(cpu_state)
-    else:
-        # Use the provided generator directly (already CPU or None)
-        cpu_generator = generator
-
-    # Fill the CPU tensor with uniform random values
+    # Fill CPU tensor with uniform random values
     cpu_tmp.uniform_(from_, to, generator=cpu_generator)
 
-    # If we used a Spyre generator, sync the updated CPU state back to Spyre
-    if generator is not None and generator.device.type == "spyre":
-        # Get the updated CPU state and convert back to Spyre state
-        updated_cpu_state = cpu_generator.get_state()
-        updated_spyre_state = _C.cpu_state_to_spyre_state(updated_cpu_state)
-        generator.set_state(updated_spyre_state)
+    # Sync generator state back to Spyre if needed
+    if is_spyre_gen:
+        gen_util.sync_generator_state_to_spyre(cpu_generator, generator)
 
     # Copy the CPU tensor back to the spyre device
     self.copy_(cpu_tmp)
@@ -195,34 +195,21 @@ def spyre__uniform_(self, from_=0.0, to=1.0, generator=None):
 
 @torch.library.register_kernel("aten::random_.from", ["spyre"])  # type:ignore
 def spyre__random_from(self, from_=0, to=1, generator=None) -> torch.Tensor:
-    import torch_spyre._C as _C
-
     # Create a new tensor on CPU.
     cpu_tmp = torch.empty_like(self, device="cpu", memory_format=torch.preserve_format)
 
-    # If a Spyre generator is provided, convert its state to CPU format
-    cpu_generator = None
-    if generator is not None and generator.device.type == "spyre":
-        # Create a CPU generator and sync the state from Spyre generator
-        cpu_generator = torch.Generator(device="cpu")
-        spyre_state = generator.get_state()
-
-        # Convert Spyre state to CPU state
-        cpu_state = _C.spyre_state_to_cpu_state(spyre_state)
-        cpu_generator.set_state(cpu_state)
-    else:
-        # Use the provided generator directly (already CPU or None)
-        cpu_generator = generator
+    # Handle generator conversion if needed
+    is_spyre_gen = gen_util.is_spyre_generator(generator)
+    cpu_generator = (
+        gen_util.convert_generator_to_cpu(generator) if is_spyre_gen else generator
+    )
 
     # Fill the CPU tensor with random values and copy to device.
     cpu_tmp.random_(from_, to, generator=cpu_generator)
 
-    # If we used a Spyre generator, sync the updated CPU state back to Spyre
-    if generator is not None and generator.device.type == "spyre":
-        # Get the updated CPU state and convert back to Spyre state
-        updated_cpu_state = cpu_generator.get_state()
-        updated_spyre_state = _C.cpu_state_to_spyre_state(updated_cpu_state)
-        generator.set_state(updated_spyre_state)
+    # Sync generator state back to Spyre if needed
+    if is_spyre_gen:
+        gen_util.sync_generator_state_to_spyre(cpu_generator, generator)
 
     self.copy_(cpu_tmp)
 
