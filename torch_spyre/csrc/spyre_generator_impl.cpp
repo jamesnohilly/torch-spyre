@@ -32,14 +32,20 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "spyre_device_enum.h"
 
 namespace spyre {
 
 namespace detail {
+
+c10::DeviceIndex num_cards = -1;
+std::deque<c10::once_flag> spyre_gens_init_flag;
+std::vector<at::Generator> default_gens_spyre;
 
 void initSpyreGenVector() {
   static bool init_flag [[maybe_unused]] = []() {
