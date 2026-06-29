@@ -279,7 +279,7 @@ std::shared_ptr<SpyreGeneratorImpl> SpyreGeneratorImpl::clone() const {
  * See Note [Acquire lock when using random generators]
  */
 SpyreGeneratorImpl* SpyreGeneratorImpl::clone_impl() const {
-  auto gen = new SpyreGeneratorImpl();
+  auto gen = new SpyreGeneratorImpl(this->device().index());
   gen->set_engine(engine_);
   return gen;
 }

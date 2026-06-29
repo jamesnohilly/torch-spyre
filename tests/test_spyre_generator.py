@@ -16,6 +16,7 @@
 
 import pytest
 import torch
+import torch_spyre
 
 
 class TestSpyreGenerator:
@@ -24,6 +25,34 @@ class TestSpyreGenerator:
         gen = torch.Generator(device="spyre")
         assert gen.device.type == "spyre"
         assert gen is not None
+
+    def test_default_generator_is_cached(self):
+        """Test that repeated calls to _get_default_generator return the same object."""
+
+        default_gen1 = torch_spyre._C._get_default_generator()
+        default_gen2 = torch_spyre._C._get_default_generator()
+
+        # Verify each generator is on the expected device before comparing identity
+        assert default_gen1.device == torch.device("spyre:0")
+        assert default_gen2.device == torch.device("spyre:0")
+        assert default_gen1 is default_gen2
+
+    @pytest.mark.skipif(
+        torch.spyre.device_count() < 2,
+        reason="Requires at least 2 Spyre devices",
+    )
+    def test_default_generators_are_distinct_across_devices(self):
+        """Test that default generators for different Spyre devices are distinct objects."""
+
+        gen0 = torch_spyre._C._get_default_generator(0)
+        gen1 = torch_spyre._C._get_default_generator(1)
+
+        # Core invariant: each device has its own generator instance
+        assert gen0 is not gen1
+
+        # Each generator must be bound to the correct device
+        assert gen0.device == torch.device("spyre:0")
+        assert gen1.device == torch.device("spyre:1")
 
     def test_manual_seed(self):
         """Test manual_seed sets the seed correctly and produces reproducible states."""
