@@ -16,6 +16,8 @@
 
 #include "spyre_stream.h"
 
+#include <ATen/record_function.h>
+
 #include <c10/core/Device.h>
 #include <c10/core/Stream.h>
 
@@ -112,6 +114,7 @@ SpyreStream::SpyreStream()
                                            SpyreGuardImpl::tls_idx))
                   .unwrap()) {}
 SpyreStream::SpyreStream(c10::Stream stream) : stream_(stream) {
+  RECORD_FUNCTION("stream_" + std::to_string(stream_.id()) + "::create " + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
   TORCH_CHECK(stream_.device_type() == c10::DeviceType::PrivateUse1,
               "SpyreStream requires PrivateUse1 device type, got ",
               stream_.device_type());
@@ -135,7 +138,9 @@ int SpyreStream::priority() const {
 }
 
 bool SpyreStream::query() const {
-  c10::DeviceGuard guard(stream_.device());
+  c10::DeviceGuard device_guard(stream_.device());
+
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::query" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
 
   DEBUGINFO("SpyreStream::query() - stream ", id(), " on device ",
             static_cast<int>(device().index()));
@@ -145,7 +150,9 @@ bool SpyreStream::query() const {
 }
 
 void SpyreStream::synchronize() const {
-  c10::DeviceGuard guard(stream_.device());
+  c10::DeviceGuard device_guard(stream_.device());
+
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::synchronize" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
 
   DEBUGINFO("SpyreStream::synchronize() - stream ", id(), " on device ",
             static_cast<int>(device().index()));
@@ -166,6 +173,8 @@ void SpyreStream::copyProgramAsync(
 
 void SpyreStream::copyAsync(const at::Tensor& src,
                             const at::Tensor& dst) const {
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::copyAsync" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+
   DEBUGINFO("src (", src.scalar_type(), ") is on:", src.device());
   DEBUGINFO("dst (", dst.scalar_type(), ") on:", dst.device());
 
@@ -204,6 +213,8 @@ flex::RuntimeStream* SpyreStream::resolveRuntimeHandle() const {
   auto& pool = getStreamPool();
   std::shared_lock<std::shared_mutex> lock(pool.mutex);
 
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::resolveRuntimeHandle" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+
   auto it = pool.stream_handle_map.find(id());
   TORCH_CHECK(it != pool.stream_handle_map.end(),
               "SpyreStream: no flex handle for stream id ", id(),
@@ -220,12 +231,16 @@ void SpyreStream::copyAsyncImpl(void* cpu_ptr,
 
   // Create and launch operation through SpyreStream's typed launch methods.
   if (host2device) {
+    RECORD_FUNCTION("stream_" + std::to_string(id()) + "::copyAsyncImpl::launchH2D" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+    
     auto* params =
         flex::createDmaParams(cpu_ptr, device_address->total_size(),
                               host2device, device_address, std::move(dci_ptr));
     launchH2D(params);
     flex::destroyDmaParams(params);
   } else {
+    RECORD_FUNCTION("stream_" + std::to_string(id()) + "::copyAsyncImpl::launchD2H" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+    
     auto* params =
         flex::createDmaParams(cpu_ptr, device_address->total_size(),
                               host2device, device_address, std::move(dci_ptr));
@@ -235,28 +250,40 @@ void SpyreStream::copyAsyncImpl(void* cpu_ptr,
 }
 
 void SpyreStream::launchH2D(flex::DmaParams* params) const {
-  resolveRuntimeHandle()->launchOperationH2D(params);
+	flex::RuntimeStream* runtimeHandle = resolveRuntimeHandle();
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::launchH2D" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+  runtimeHandle->launchOperationH2D(params);
 }
 
 void SpyreStream::launchD2H(flex::DmaParams* params) const {
-  resolveRuntimeHandle()->launchOperationD2H(params);
+	flex::RuntimeStream* runtimeHandle = resolveRuntimeHandle();
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::launchD2H" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+  runtimeHandle->launchOperationD2H(params);
 }
 
 void SpyreStream::launchCompute(flex::ComputeParams* params) const {
-  resolveRuntimeHandle()->launchOperationCompute(params);
+	flex::RuntimeStream* runtimeHandle = resolveRuntimeHandle();
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::launchCompute" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+  runtimeHandle->launchOperationCompute(params);
 }
 
 void SpyreStream::launchHostCallback(flex::HostCallbackParams* params) const {
-  resolveRuntimeHandle()->launchOperationHostCallback(params);
+	flex::RuntimeStream* runtimeHandle = resolveRuntimeHandle();
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::launchHostCallback" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+  runtimeHandle->launchOperationHostCallback(params);
 }
 
 void SpyreStream::fillAsync(const flex::CompositeAddress* dst, double value,
                             DataFormats dtype, bool use_dmai) const {
-  resolveRuntimeHandle()->fillAsync(dst, value, dtype, use_dmai);
+	flex::RuntimeStream* runtimeHandle = resolveRuntimeHandle();
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::fillAsync" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+  runtimeHandle->fillAsync(dst, value, dtype, use_dmai);
 }
 
 void SpyreStream::launch(const JobPlan& plan,
                          const std::vector<at::Tensor>& args) const {
+  RECORD_FUNCTION("stream_" + std::to_string(id()) + "::launch" + (priority() == -1 ? " (high priority)" : " (low priority)"), {});
+
   // Validate all tensors are on Spyre device
   for (size_t i = 0; i < args.size(); ++i) {
     TORCH_CHECK(args[i].is_privateuseone(), "SpyreStream::launch: argument ", i,
