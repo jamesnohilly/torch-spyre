@@ -300,7 +300,8 @@ void initializeStreamPoolImpl(c10::DeviceIndex device_index) {
         " is already registered; only one Spyre device per process is "
         "supported");
     pool.stream_handle_map[sid] =
-        runtime->createStream(flex::RuntimeStreamPriority::NORMAL);
+        runtime->createStream(flex::RuntimeStreamPriority::NORMAL,
+                              flex::RuntimeStreamMode::STRICT_ORDERING, sid);
     pool.host_compute_streams[device_index].push_back(sid);
   }
   pool.next_host_compute_idx[device_index] = 0;
@@ -451,7 +452,8 @@ SpyreStream getStreamFromPool(c10::Device device, int priority) {
     flex::RuntimeStreamPriority streamPriority =
         priority < 0 ? flex::RuntimeStreamPriority::HIGH
                      : flex::RuntimeStreamPriority::NORMAL;
-    flex::RuntimeStream* flex_handle = runtime->createStream(streamPriority);
+    flex::RuntimeStream* flex_handle = runtime->createStream(
+        streamPriority, flex::RuntimeStreamMode::STRICT_ORDERING, stream_id);
     pool.stream_handle_map[stream_id] = flex_handle;
   }
 
