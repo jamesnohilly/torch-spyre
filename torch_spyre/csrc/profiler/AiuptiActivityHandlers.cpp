@@ -315,15 +315,15 @@ inline std::string memoryCopyOperationName(uint8_t kind) {
 }
 
 inline uint32_t getBaseResourceId(const AIUpti_ActivityMemcpy* activity) {
-  return activity->copy_kind * 100;
+  return activity->stream_id;
 }
 
 inline uint32_t getBaseResourceId(const AIUpti_ActivityMemory* activity) {
-  return 400;
+  return 100;
 }
 
 inline uint32_t getBaseResourceId(const AIUpti_ActivityMemset* activity) {
-  return 400;  // put memset and memory release on the same PID
+  return 100;  // put memset and memory release on the same PID
 }
 
 template <class memory_activity_type>
@@ -379,7 +379,7 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->id = activity->correlation_id;
   memcpy_activity->device = activity->device_id;
   memcpy_activity->resource = getResourceId(activity);
-  memcpy_activity->threadId = activity->stream_id;
+  memcpy_activity->threadId = activity->stream_id * 10;
   memcpy_activity->flow.id = 0;
   memcpy_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
   memcpy_activity->flow.start = 0;
@@ -393,6 +393,7 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->addMetadata("memory operation id", activity->copy_kind);
   memcpy_activity->addMetadata("bytes", activity->bytes);
   memcpy_activity->addMetadata("memory bandwidth (GB/s)", bandwidth(activity));
+  memcpy_activity->addMetadata("stream id", activity->stream_id);
 
   if (memcpy_activity->resource == getBaseResourceId(activity)) {
     recordMemoryStream(memcpy_activity->device, memcpy_activity->resource,
@@ -446,7 +447,7 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
     mem_activity->id = activity->correlation_id;
     mem_activity->device = activity->device_id;
     mem_activity->resource = getResourceId(activity);
-    mem_activity->threadId = activity->stream_id;
+    mem_activity->threadId = activity->stream_id * 10;
     mem_activity->flow.id = 0;
     mem_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
     mem_activity->flow.start = 0;
@@ -461,6 +462,7 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
                               activity->memory_operation_type);
     mem_activity->addMetadata("bytes", activity->bytes);
     mem_activity->addMetadata("memory bandwidth (GB/s)", bandwidth(activity));
+    mem_activity->addMetadata("stream id", activity->stream_id);
 
     if (mem_activity->resource == getBaseResourceId(activity)) {
       recordMemoryStream(mem_activity->device, mem_activity->resource,
@@ -529,7 +531,7 @@ void AiuptiActivityProfilerSession::handleMemsetActivity(
   // TODO(mcalman): investigate why memset activities are being processed out
   // of order This prevents us from using getResourceId which handles overlap
   memset_activity->resource = getBaseResourceId(activity);
-  memset_activity->threadId = activity->stream_id;
+  memset_activity->threadId = activity->stream_id * 10;
   memset_activity->flow.id = 0;
   memset_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
   memset_activity->flow.start = 0;
@@ -541,6 +543,7 @@ void AiuptiActivityProfilerSession::handleMemsetActivity(
   memset_activity->addMetadata("correlation", activity->correlation_id);
   memset_activity->addMetadata("bytes", activity->bytes);
   memset_activity->addMetadata("memory bandwidth (GB/s)", bandwidth(activity));
+  memset_activity->addMetadata("stream id", activity->stream_id);
 
   if (memset_activity->resource == getBaseResourceId(activity)) {
     recordMemoryStream(memset_activity->device, memset_activity->resource,
