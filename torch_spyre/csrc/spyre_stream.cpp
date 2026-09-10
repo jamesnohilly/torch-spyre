@@ -247,21 +247,29 @@ void SpyreStream::copyAsyncImpl(void* cpu_ptr,
 
 void SpyreStream::launchH2D(flex::DmaParams* params) const {
   RECORD_FUNCTION("launch::H2D", {});
+  DEBUGINFO("launchH2D on stream id=", id(), " device=",
+            static_cast<int>(device().index()));
   resolveRuntimeHandle()->launchOperationH2D(params);
 }
 
 void SpyreStream::launchD2H(flex::DmaParams* params) const {
   RECORD_FUNCTION("launch::D2H", {});
+  DEBUGINFO("launchD2H on stream id=", id(), " device=",
+            static_cast<int>(device().index()));
   resolveRuntimeHandle()->launchOperationD2H(params);
 }
 
 void SpyreStream::launchCompute(flex::ComputeParams* params) const {
   RECORD_FUNCTION("launch::Compute", {});
+  DEBUGINFO("launchCompute on stream id=", id(), " device=",
+            static_cast<int>(device().index()));
   resolveRuntimeHandle()->launchOperationCompute(params);
 }
 
 void SpyreStream::launchHostCallback(flex::HostCallbackParams* params) const {
   RECORD_FUNCTION("launch::HostCallback", {});
+  DEBUGINFO("launchHostCallback on stream id=", id(), " device=",
+            static_cast<int>(device().index()));
   resolveRuntimeHandle()->launchOperationHostCallback(params);
 }
 
@@ -411,6 +419,8 @@ SpyreStream getCurrentStream(c10::Device device) {
 SpyreStream setCurrentStream(SpyreStream stream) {
   auto device = stream.device();
   auto old_stream = getCurrentStream(device);
+  DEBUGINFO("setCurrentStream: device=", static_cast<int>(device.index()),
+            " old id=", old_stream.id(), " new id=", stream.id());
   current_streams[device.index()] = stream.id();
   return old_stream;
 }
@@ -490,6 +500,9 @@ SpyreStream getStreamFromPool(c10::Device device, int priority) {
     stream_id = streams[idx];
     idx = (idx + 1) % streams.size();
   }
+
+  DEBUGINFO("getStreamFromPool: device=", static_cast<int>(device.index()),
+            " priority=", priority, " stream id=", stream_id);
 
   // Create corresponding flex stream handle (if not exists)
   if (pool.stream_handle_map.find(stream_id) == pool.stream_handle_map.end()) {
