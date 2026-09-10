@@ -260,7 +260,7 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
   kernel_activity->id = activity->correlation_id;
   kernel_activity->device = activity->device_id;
   kernel_activity->resource = activity->stream_id;
-  kernel_activity->threadId = activity->stream_id;
+  kernel_activity->threadId = activity->stream_id * 10;
   kernel_activity->flow.id = activity->correlation_id;
   kernel_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
   kernel_activity->flow.start = 0;
@@ -268,7 +268,7 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
   kernel_activity->addMetadata("queued", activity->queued);
   kernel_activity->addMetadata("submitted", activity->submitted);
   kernel_activity->addMetadata("device", kernel_activity->deviceId());
-  kernel_activity->addMetadata("stream", 1);
+  kernel_activity->addMetadata("stream id", activity->stream_id);
   kernel_activity->addMetadataQuoted("context",
                                      std::to_string(activity->context_id));
   kernel_activity->addMetadata("correlation", activity->correlation_id);

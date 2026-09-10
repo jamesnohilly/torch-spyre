@@ -114,7 +114,7 @@ void AiuptiActivityProfilerSession::recordStream(uint32_t device, uint32_t id) {
   if (!hasDeviceResource(device, id)) {
     resourceInfo_.emplace(
         std::make_pair(device, id),
-        libkineto::ResourceInfo(id * 10, device, kExceedMaxTid + id,
+        libkineto::ResourceInfo(id, id, 0,
                                 fmt::format("Stream {}", id)));
   }
 }
@@ -124,7 +124,7 @@ void AiuptiActivityProfilerSession::recordMemoryStream(uint32_t device,
                                                        std::string name) {
   if (!hasDeviceResource(device, id)) {
     resourceInfo_.emplace(std::make_pair(device, id),
-                          libkineto::ResourceInfo(id * 10, device, id, 
+                          libkineto::ResourceInfo(id, id, 0, 
                           fmt::format("Memory Stream {}", id)));
   }
 }
