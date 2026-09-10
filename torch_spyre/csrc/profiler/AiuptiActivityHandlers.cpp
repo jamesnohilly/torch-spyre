@@ -25,6 +25,7 @@
 
 #include "AiuptiActivityProfiler.h"
 #include "kernel_provenance_registry.h"
+#include "logging.h"
 
 namespace KINETO_NAMESPACE {
 
@@ -260,7 +261,11 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
   kernel_activity->id = activity->correlation_id;
   kernel_activity->device = activity->device_id;
   kernel_activity->resource = activity->stream_id;
-  kernel_activity->threadId = activity->stream_id * 10;
+  kernel_activity->threadId = activity->stream_id + 10;
+  DEBUGINFO("handleKernelActivity: device=", activity->device_id,
+            " stream_id=", activity->stream_id,
+            " resource=", kernel_activity->resource,
+            " name=", activity->name);
   kernel_activity->flow.id = activity->correlation_id;
   kernel_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
   kernel_activity->flow.start = 0;
@@ -379,7 +384,10 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->id = activity->correlation_id;
   memcpy_activity->device = activity->device_id;
   memcpy_activity->resource = getResourceId(activity);
-  memcpy_activity->threadId = activity->stream_id * 10;
+  memcpy_activity->threadId = activity->stream_id + 10;
+  DEBUGINFO("handleMemcpyActivity: device=", activity->device_id,
+            " stream_id=", activity->stream_id,
+            " resource=", memcpy_activity->resource);
   memcpy_activity->flow.id = 0;
   memcpy_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
   memcpy_activity->flow.start = 0;
@@ -447,7 +455,10 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
     mem_activity->id = activity->correlation_id;
     mem_activity->device = activity->device_id;
     mem_activity->resource = getResourceId(activity);
-    mem_activity->threadId = activity->stream_id * 10;
+    mem_activity->threadId = activity->stream_id + 10;
+    DEBUGINFO("handleMemoryActivity: device=", activity->device_id,
+              " stream_id=", activity->stream_id,
+              " resource=", mem_activity->resource);
     mem_activity->flow.id = 0;
     mem_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
     mem_activity->flow.start = 0;

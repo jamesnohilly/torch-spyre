@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "AiuptiActivityApi.h"
+#include "logging.h"
 
 namespace KINETO_NAMESPACE {
 
@@ -111,21 +112,23 @@ bool AiuptiActivityProfilerSession::hasDeviceResource(uint32_t device,
 }
 
 void AiuptiActivityProfilerSession::recordStream(uint32_t device, uint32_t id) {
+  DEBUGINFO("recordStream: device=", device, " id=", id);
   if (!hasDeviceResource(device, id)) {
     resourceInfo_.emplace(
         std::make_pair(device, id),
         libkineto::ResourceInfo(id, id, 0,
-                                fmt::format("Stream {}", id)));
+                                fmt::format("Stream {}", id - 10)));
   }
 }
 
 void AiuptiActivityProfilerSession::recordMemoryStream(uint32_t device,
-                                                       uint32_t id,
-                                                       std::string name) {
+                                                        uint32_t id,
+                                                        std::string name) {
+  DEBUGINFO("recordMemoryStream: device=", device, " id=", id, " name=", name);
   if (!hasDeviceResource(device, id)) {
     resourceInfo_.emplace(std::make_pair(device, id),
-                          libkineto::ResourceInfo(id, id, 0, 
-                          fmt::format("Memory Stream {}", id)));
+                          libkineto::ResourceInfo(id, id, 0,
+                          fmt::format("Memory Stream {}", id - 10)));
   }
 }
 
