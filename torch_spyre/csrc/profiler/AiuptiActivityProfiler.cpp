@@ -75,16 +75,18 @@ void AiuptiActivityProfilerSession::processTrace(
                               this, std::placeholders::_1, &logger));
   }
 
-  // Emit one DeviceInfo (PID) per observed AIU device so that kernel and
-  // memcpy events from different device IDs appear in separate labelled rows.
-  int32_t pid = libkineto::processId();
-  std::string process_name = libkineto::processName(pid);
+  // Emit one DeviceInfo (PID) per observed AIU device. Use
+  // device_id + kExceedMaxPid as both the pid and the sort index so that:
+  //   - AIU rows appear below CPU rows (kExceedMaxPid pushes them down)
+  //   - device 0 pid != CPU process 0
   for (uint32_t device_id : observedDeviceIds_) {
+    const int64_t aiu_pid =
+        static_cast<int64_t>(device_id) + libkineto::kExceedMaxPid;
     logger.handleDeviceInfo(
         libkineto::DeviceInfo(
-            device_id,
-            static_cast<int64_t>(device_id) + libkineto::kExceedMaxPid,
-            process_name,
+            aiu_pid,
+            aiu_pid,
+            fmt::format("AIU {}", device_id),
             fmt::format("AIU {}", device_id)),
         profilerStartTs_);
   }
@@ -95,7 +97,7 @@ void AiuptiActivityProfilerSession::processTrace(
       libkineto::DeviceInfo(
           kHostComputePid,
           kHostComputePid,
-          process_name,
+          "Host Compute",
           "Host Compute"),
       profilerStartTs_);
 }
@@ -119,13 +121,12 @@ AiuptiActivityProfilerSession::getDeviceInfo() {
   if (observedDeviceIds_.empty()) {
     return nullptr;
   }
-  int32_t pid = libkineto::processId();
-  std::string process_name = libkineto::processName(pid);
   uint32_t first_id = *observedDeviceIds_.begin();
+  const int64_t aiu_pid =
+      static_cast<int64_t>(first_id) + libkineto::kExceedMaxPid;
   return std::make_unique<libkineto::DeviceInfo>(
-      first_id,
-      static_cast<int64_t>(first_id) + libkineto::kExceedMaxPid,
-      process_name,
+      aiu_pid, aiu_pid,
+      fmt::format("AIU {}", first_id),
       fmt::format("AIU {}", first_id));
 }
 

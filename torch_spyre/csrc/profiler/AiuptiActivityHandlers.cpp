@@ -265,7 +265,8 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
   kernel_activity->startTime = activity->start;
   kernel_activity->endTime = activity->end;
   kernel_activity->id = activity->correlation_id;
-  kernel_activity->device = activity->device_id;
+  kernel_activity->device =
+      static_cast<int32_t>(activity->device_id) + libkineto::kExceedMaxPid;
 
   // Route to the per-stream lane based on operation_kind:
   //   DMI  → H2D lane  (host-to-device DMA in)
@@ -402,7 +403,8 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->startTime = activity->start;
   memcpy_activity->endTime = activity->end;
   memcpy_activity->id = activity->correlation_id;
-  memcpy_activity->device = activity->device_id;
+  memcpy_activity->device =
+      static_cast<int32_t>(activity->device_id) + libkineto::kExceedMaxPid;
 
   // Route to the per-stream H2D or D2H lane based on copy direction.
   // PtoP and unknown kinds fall back to the base stream_id resource.
