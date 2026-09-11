@@ -197,9 +197,8 @@ void AiuptiActivityProfilerSession::handleRuntimeActivity(
   runtime_activity->startTime = activity->start;
   runtime_activity->endTime = activity->end;
   runtime_activity->id = activity->correlation_id;
-  // AIUpti_ActivityAPI has no device_id field — defer device assignment until
-  // all activities have been processed and correlationToDeviceId_ is populated.
-  // Use process_id as a temporary placeholder.
+  // AIUpti_ActivityAPI has no device_id — runtime activities remain on the
+  // CPU process row.
   runtime_activity->device = activity->process_id;
   // AIUpti_ActivityAPI has no stream_id — runtime activities remain on the
   // CPU thread resource.
@@ -240,17 +239,20 @@ void AiuptiActivityProfilerSession::handleRuntimeActivity(
       break;
   }
 
-  // Do not log yet — defer until processTrace() has seen all other activity
-  // types and can resolve the correct device_id via correlationToDeviceId_.
-  pendingRuntimeActivities_.push_back(
-      std::move(traceBuffer_.activities.back()));
-  traceBuffer_.activities.pop_back();
+  // checkTimestampOrder(&*runtime_activity);
+  // if (outOfRange(*runtime_activity)) {
+  //   traceBuffer_.span.opCount -= 1;
+  //   traceBuffer_.gpuOpCount -= 1;
+  //   removeCorrelatedPtiActivities(&*runtime_activity);
+  //   traceBuffer_.activities.pop_back();
+  //   return;
+  // }
+  runtime_activity->log(*logger);
 }
 
 void AiuptiActivityProfilerSession::handleKernelActivity(
     const AIUpti_ActivityCompute* activity, libkineto::ActivityLogger* logger) {
   observedDeviceIds_.insert(activity->device_id);
-  correlationToDeviceId_[activity->correlation_id] = activity->device_id;
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -388,7 +390,6 @@ template uint32_t AiuptiActivityProfilerSession::getResourceId<
 void AiuptiActivityProfilerSession::handleMemcpyActivity(
     const AIUpti_ActivityMemcpy* activity, libkineto::ActivityLogger* logger) {
   observedDeviceIds_.insert(activity->device_id);
-  correlationToDeviceId_[activity->correlation_id] = activity->device_id;
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -473,7 +474,6 @@ inline std::string memoryOperationName(uint8_t kind) {
 
 void AiuptiActivityProfilerSession::handleMemoryActivity(
     const AIUpti_ActivityMemory* activity, libkineto::ActivityLogger* logger) {
-  observedDeviceIds_.insert(activity->device_id);
   // do not track memory allocation events because they are the same as memset
   if (activity->memory_operation_type ==
       (uint8_t)AIUPTI_ACTIVITY_MEMORY_OPERATION_TYPE_RELEASE) {
@@ -491,7 +491,9 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
     mem_activity->startTime = activity->start;
     mem_activity->endTime = activity->end;
     mem_activity->id = activity->correlation_id;
-    mem_activity->device = activity->device_id;
+    // Memory management activities are host-initiated — place them on the
+    // shared "Host Compute" PID rather than a device-specific row.
+    mem_activity->device = kHostComputePid;
     mem_activity->resource = getResourceId(activity);
     mem_activity->threadId = activity->stream_id + 10;
     DEBUGINFO("handleMemoryActivity: device=", activity->device_id,
@@ -503,7 +505,7 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
     mem_activity->linked = linked;
     mem_activity->addMetadataQuoted(
         "call", memoryOperationName(activity->memory_operation_type));
-    mem_activity->addMetadata("device", mem_activity->deviceId());
+    mem_activity->addMetadata("device", activity->device_id);
     mem_activity->addMetadataQuoted("context",
                                     std::to_string(activity->process_id));
     mem_activity->addMetadata("correlation", activity->correlation_id);
@@ -514,10 +516,10 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
     mem_activity->addMetadata("stream id", activity->stream_id);
 
     if (mem_activity->resource == getBaseResourceId(activity)) {
-      recordMemoryStream(mem_activity->device, mem_activity->resource,
+      recordMemoryStream(kHostComputePid, mem_activity->resource,
                          "Memory management:");
     } else {
-      recordMemoryStream(mem_activity->device, mem_activity->resource, " ");
+      recordMemoryStream(kHostComputePid, mem_activity->resource, " ");
     }
     // checkTimestampOrder(&*mem_activity);
     // if (outOfRange(*mem_activity)) {
@@ -563,8 +565,6 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
 
 void AiuptiActivityProfilerSession::handleMemsetActivity(
     const AIUpti_ActivityMemset* activity, libkineto::ActivityLogger* logger) {
-  observedDeviceIds_.insert(activity->device_id);
-  correlationToDeviceId_[activity->correlation_id] = activity->device_id;
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   // TODO(mamaral): implement the libaiupti to add external correlation ID
@@ -578,7 +578,8 @@ void AiuptiActivityProfilerSession::handleMemsetActivity(
   memset_activity->startTime = activity->start;
   memset_activity->endTime = activity->end;
   memset_activity->id = activity->correlation_id;
-  memset_activity->device = activity->device_id;
+  // Memset is host-initiated — place it on the shared "Host Compute" PID.
+  memset_activity->device = kHostComputePid;
   // TODO(mcalman): investigate why memset activities are being processed out
   // of order This prevents us from using getResourceId which handles overlap
   memset_activity->resource = getBaseResourceId(activity);
@@ -588,7 +589,7 @@ void AiuptiActivityProfilerSession::handleMemsetActivity(
   memset_activity->flow.start = 0;
   memset_activity->linked = linked;
   memset_activity->addMetadataQuoted("call", "Memset");
-  memset_activity->addMetadata("device", memset_activity->deviceId());
+  memset_activity->addMetadata("device", activity->device_id);
   memset_activity->addMetadataQuoted("context",
                                      std::to_string(activity->context_id));
   memset_activity->addMetadata("correlation", activity->correlation_id);
@@ -597,10 +598,10 @@ void AiuptiActivityProfilerSession::handleMemsetActivity(
   memset_activity->addMetadata("stream id", activity->stream_id);
 
   if (memset_activity->resource == getBaseResourceId(activity)) {
-    recordMemoryStream(memset_activity->device, memset_activity->resource,
+    recordMemoryStream(kHostComputePid, memset_activity->resource,
                        "Memory management:");
   } else {
-    recordMemoryStream(memset_activity->device, memset_activity->resource, " ");
+    recordMemoryStream(kHostComputePid, memset_activity->resource, " ");
   }
 
   // TODO(mamaral): verify if we can enable this

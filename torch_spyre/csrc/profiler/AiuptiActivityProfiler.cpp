@@ -75,31 +75,29 @@ void AiuptiActivityProfilerSession::processTrace(
                               this, std::placeholders::_1, &logger));
   }
 
-  // All activities have now been processed. Flush deferred runtime activities,
-  // resolving their device_id from the correlation map populated by the
-  // compute/memcpy/memset/memory handlers above.
-  for (auto& runtime_activity : pendingRuntimeActivities_) {
-    const auto it = correlationToDeviceId_.find(runtime_activity->id);
-    if (it != correlationToDeviceId_.end()) {
-      runtime_activity->device = it->second;
-    }
-    runtime_activity->log(logger);
-  }
-  pendingRuntimeActivities_.clear();
-
-  // Emit one DeviceInfo (PID) per observed device so that events from
-  // different AIU device IDs appear in separate, labelled process rows.
+  // Emit one DeviceInfo (PID) per observed AIU device so that kernel and
+  // memcpy events from different device IDs appear in separate labelled rows.
   int32_t pid = libkineto::processId();
   std::string process_name = libkineto::processName(pid);
   for (uint32_t device_id : observedDeviceIds_) {
     logger.handleDeviceInfo(
         libkineto::DeviceInfo(
             device_id,
-            device_id + libkineto::kExceedMaxPid,
+            static_cast<int64_t>(device_id) + libkineto::kExceedMaxPid,
             process_name,
             fmt::format("AIU {}", device_id)),
         profilerStartTs_);
   }
+
+  // Emit the fixed "Host Compute" PID for memset and memory activities.
+  // Sort it immediately after the AIU device rows.
+  logger.handleDeviceInfo(
+      libkineto::DeviceInfo(
+          kHostComputePid,
+          kHostComputePid,
+          process_name,
+          "Host Compute"),
+      profilerStartTs_);
 }
 
 void AiuptiActivityProfilerSession::processTrace(
@@ -114,11 +112,10 @@ void AiuptiActivityProfilerSession::processTrace(
 
 std::unique_ptr<libkineto::DeviceInfo>
 AiuptiActivityProfilerSession::getDeviceInfo() {
-  // Per-device DeviceInfo entries are emitted directly in processTrace().
-  // Return a non-null sentinel here so that CuptiActivityProfiler's
-  // finalizeTrace sets use_default_device_info=false and does not fall
-  // through to registering generic "GPU 0"–"GPU 15" rows that would
-  // overwrite the "AIU {N}" labels we already emitted.
+  // All DeviceInfo entries are emitted directly in processTrace().
+  // Return a non-null sentinel so that CuptiActivityProfiler::finalizeTrace
+  // sets use_default_device_info=false and skips the generic "GPU 0–15"
+  // fallback that would overwrite our "AIU {N}" / "Host Compute" labels.
   if (observedDeviceIds_.empty()) {
     return nullptr;
   }
@@ -126,7 +123,9 @@ AiuptiActivityProfilerSession::getDeviceInfo() {
   std::string process_name = libkineto::processName(pid);
   uint32_t first_id = *observedDeviceIds_.begin();
   return std::make_unique<libkineto::DeviceInfo>(
-      first_id, first_id + libkineto::kExceedMaxPid, process_name,
+      first_id,
+      static_cast<int64_t>(first_id) + libkineto::kExceedMaxPid,
+      process_name,
       fmt::format("AIU {}", first_id));
 }
 

@@ -37,6 +37,10 @@ namespace KINETO_NAMESPACE {
 enum class StreamLane : uint32_t { H2D = 0, D2H = 1, Compute = 2 };
 static constexpr uint32_t kLaneCount = 3;
 
+// Pseudo-PID for host-initiated operations (memset, memory management).
+// Placed one slot after the largest possible device PID in the sort order.
+static constexpr int64_t kHostComputePid = libkineto::kExceedMaxPid + 1;
+
 inline uint32_t streamLaneResourceId(uint32_t stream_id, StreamLane lane) {
   return stream_id * kLaneCount + static_cast<uint32_t>(lane);
 }
@@ -112,12 +116,6 @@ class AiuptiActivityProfilerSession
   static std::vector<std::string> correlateRuntimeOps_;
 
   std::set<uint32_t> observedDeviceIds_;
-  // Maps correlation_id → device_id, populated by compute/memcpy/memset/memory
-  // handlers so runtime activities can resolve their device at flush time.
-  std::unordered_map<uint32_t, uint32_t> correlationToDeviceId_;
-  // Runtime activities are buffered here and flushed after all other activity
-  // types have been processed (so correlationToDeviceId_ is fully populated).
-  std::vector<std::unique_ptr<libkineto::GenericTraceActivity>> pendingRuntimeActivities_;
 
   int64_t captureWindowStartTime_{0};
   int64_t captureWindowEndTime_{0};
