@@ -74,6 +74,20 @@ void AiuptiActivityProfilerSession::processTrace(
         *aiuBuffer, std::bind(&AiuptiActivityProfilerSession::handlePtiActivity,
                               this, std::placeholders::_1, &logger));
   }
+
+  // Emit one DeviceInfo (PID) per observed device so that events from
+  // different AIU device IDs appear in separate, labelled process rows.
+  int32_t pid = libkineto::processId();
+  std::string process_name = libkineto::processName(pid);
+  for (uint32_t device_id : observedDeviceIds_) {
+    logger.handleDeviceInfo(
+        libkineto::DeviceInfo(
+            device_id,
+            device_id + libkineto::kExceedMaxPid,
+            process_name,
+            fmt::format("AIU {}", device_id)),
+        profilerStartTs_);
+  }
 }
 
 void AiuptiActivityProfilerSession::processTrace(
@@ -86,15 +100,11 @@ void AiuptiActivityProfilerSession::processTrace(
   processTrace(logger);
 }
 
-// TODO(mcalman): support multi-AIU
 std::unique_ptr<libkineto::DeviceInfo>
 AiuptiActivityProfilerSession::getDeviceInfo() {
-  int32_t pid = libkineto::processId();
-  std::string process_name = libkineto::processName(pid);
-  int aiu = 0;
-  return std::make_unique<libkineto::DeviceInfo>(
-      aiu, aiu + libkineto::kExceedMaxPid, process_name,
-      fmt::format("AIU {}", 0));
+  // Per-device DeviceInfo entries are emitted directly in processTrace();
+  // return nullptr here to avoid double-registering any device.
+  return nullptr;
 }
 
 std::vector<libkineto::ResourceInfo>
@@ -120,31 +130,31 @@ void AiuptiActivityProfilerSession::recordStream(uint32_t device,
             " resource=", resource, " label=", label);
   if (!hasDeviceResource(device, resource)) {
     resourceInfo_.emplace(std::make_pair(device, resource),
-                          libkineto::ResourceInfo(resource, resource, 0, label));
+                          libkineto::ResourceInfo(device, resource, 0, label));
   }
 }
 
 void AiuptiActivityProfilerSession::recordMemoryStream(uint32_t device,
-                                                        uint32_t stream_id,
-                                                        StreamLane lane) {
+                                                         uint32_t stream_id,
+                                                         StreamLane lane) {
   const uint32_t resource = streamLaneResourceId(stream_id, lane);
   const std::string label = streamLaneLabel(stream_id, lane);
   DEBUGINFO("recordMemoryStream: device=", device, " stream_id=", stream_id,
             " resource=", resource, " label=", label);
   if (!hasDeviceResource(device, resource)) {
     resourceInfo_.emplace(std::make_pair(device, resource),
-                          libkineto::ResourceInfo(resource, resource, 0, label));
+                          libkineto::ResourceInfo(device, resource, 0, label));
   }
 }
 
 void AiuptiActivityProfilerSession::recordMemoryStream(uint32_t device,
-                                                        uint32_t resource,
-                                                        std::string name) {
+                                                         uint32_t resource,
+                                                         std::string name) {
   DEBUGINFO("recordMemoryStream: device=", device, " resource=", resource,
             " name=", name);
   if (!hasDeviceResource(device, resource)) {
     resourceInfo_.emplace(std::make_pair(device, resource),
-                          libkineto::ResourceInfo(resource, resource, 0, name));
+                          libkineto::ResourceInfo(device, resource, 0, name));
   }
 }
 

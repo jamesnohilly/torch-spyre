@@ -183,6 +183,7 @@ inline std::string runtimeCbidName(AIUpti_runtime_api_trace_cbid cbid) {
 
 void AiuptiActivityProfilerSession::handleRuntimeActivity(
     const AIUpti_ActivityAPI* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->process_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -250,6 +251,7 @@ void AiuptiActivityProfilerSession::handleRuntimeActivity(
 
 void AiuptiActivityProfilerSession::handleKernelActivity(
     const AIUpti_ActivityCompute* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->device_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -386,6 +388,7 @@ template uint32_t AiuptiActivityProfilerSession::getResourceId<
 
 void AiuptiActivityProfilerSession::handleMemcpyActivity(
     const AIUpti_ActivityMemcpy* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->device_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -470,6 +473,7 @@ inline std::string memoryOperationName(uint8_t kind) {
 
 void AiuptiActivityProfilerSession::handleMemoryActivity(
     const AIUpti_ActivityMemory* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->device_id);
   // do not track memory allocation events because they are the same as memset
   if (activity->memory_operation_type ==
       (uint8_t)AIUPTI_ACTIVITY_MEMORY_OPERATION_TYPE_RELEASE) {
@@ -559,6 +563,7 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
 
 void AiuptiActivityProfilerSession::handleMemsetActivity(
     const AIUpti_ActivityMemset* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->device_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   // TODO(mamaral): implement the libaiupti to add external correlation ID

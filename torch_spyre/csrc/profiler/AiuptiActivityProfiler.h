@@ -111,6 +111,8 @@ class AiuptiActivityProfilerSession
   static std::vector<std::array<unsigned char, 16>> deviceUUIDs_;
   static std::vector<std::string> correlateRuntimeOps_;
 
+  std::set<uint32_t> observedDeviceIds_;
+
   int64_t captureWindowStartTime_{0};
   int64_t captureWindowEndTime_{0};
   int64_t profilerStartTs_{0};
