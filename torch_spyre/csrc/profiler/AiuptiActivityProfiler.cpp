@@ -153,7 +153,7 @@ void AiuptiActivityProfilerSession::recordStream(uint32_t device,
             " resource=", resource, " label=", label);
   if (!hasDeviceResource(device, resource)) {
     resourceInfo_.emplace(std::make_pair(device, resource),
-                          libkineto::ResourceInfo(device, resource, 0, label));
+                          libkineto::ResourceInfo(resource, resource, device, label));
   }
 }
 
@@ -166,7 +166,7 @@ void AiuptiActivityProfilerSession::recordMemoryStream(uint32_t device,
             " resource=", resource, " label=", label);
   if (!hasDeviceResource(device, resource)) {
     resourceInfo_.emplace(std::make_pair(device, resource),
-                          libkineto::ResourceInfo(device, resource, 0, label));
+                          libkineto::ResourceInfo(resource, resource, device, label));
   }
 }
 
@@ -177,7 +177,7 @@ void AiuptiActivityProfilerSession::recordMemoryStream(uint32_t device,
             " name=", name);
   if (!hasDeviceResource(device, resource)) {
     resourceInfo_.emplace(std::make_pair(device, resource),
-                          libkineto::ResourceInfo(device, resource, 0, name));
+                          libkineto::ResourceInfo(resource, resource, device, name));
   }
 }
 
