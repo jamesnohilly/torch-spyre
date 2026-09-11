@@ -183,6 +183,7 @@ inline std::string runtimeCbidName(AIUpti_runtime_api_trace_cbid cbid) {
 
 void AiuptiActivityProfilerSession::handleRuntimeActivity(
     const AIUpti_ActivityAPI* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->process_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -250,6 +251,7 @@ void AiuptiActivityProfilerSession::handleRuntimeActivity(
 
 void AiuptiActivityProfilerSession::handleKernelActivity(
     const AIUpti_ActivityCompute* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->device_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -262,7 +264,8 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
   kernel_activity->startTime = activity->start;
   kernel_activity->endTime = activity->end;
   kernel_activity->id = activity->correlation_id;
-  kernel_activity->device = activity->device_id;
+  kernel_activity->device =
+      static_cast<int32_t>(activity->device_id) + libkineto::kExceedMaxPid;
 
   // Route to the per-stream lane based on operation_kind:
   //   DMI  → H2D lane  (host-to-device DMA in)
@@ -340,11 +343,11 @@ inline uint32_t getBaseResourceId(const AIUpti_ActivityMemcpy* activity) {
 }
 
 inline uint32_t getBaseResourceId(const AIUpti_ActivityMemory* activity) {
-  return 100;
+  return 0;
 }
 
 inline uint32_t getBaseResourceId(const AIUpti_ActivityMemset* activity) {
-  return 100;  // put memset and memory release on the same PID
+  return 0;  // put memset and memory release on the same PID
 }
 
 template <class memory_activity_type>
@@ -386,6 +389,7 @@ template uint32_t AiuptiActivityProfilerSession::getResourceId<
 
 void AiuptiActivityProfilerSession::handleMemcpyActivity(
     const AIUpti_ActivityMemcpy* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->device_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -398,7 +402,8 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->startTime = activity->start;
   memcpy_activity->endTime = activity->end;
   memcpy_activity->id = activity->correlation_id;
-  memcpy_activity->device = activity->device_id;
+  memcpy_activity->device =
+      static_cast<int32_t>(activity->device_id) + libkineto::kExceedMaxPid;
 
   // Route to the per-stream H2D or D2H lane based on copy direction.
   // PtoP and unknown kinds fall back to the base stream_id resource.
@@ -470,6 +475,7 @@ inline std::string memoryOperationName(uint8_t kind) {
 
 void AiuptiActivityProfilerSession::handleMemoryActivity(
     const AIUpti_ActivityMemory* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->device_id);
   // do not track memory allocation events because they are the same as memset
   if (activity->memory_operation_type ==
       (uint8_t)AIUPTI_ACTIVITY_MEMORY_OPERATION_TYPE_RELEASE) {
@@ -559,6 +565,7 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
 
 void AiuptiActivityProfilerSession::handleMemsetActivity(
     const AIUpti_ActivityMemset* activity, libkineto::ActivityLogger* logger) {
+  observedDeviceIds_.insert(activity->device_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   // TODO(mamaral): implement the libaiupti to add external correlation ID
