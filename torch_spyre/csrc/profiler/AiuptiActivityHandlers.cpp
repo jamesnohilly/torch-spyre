@@ -183,7 +183,6 @@ inline std::string runtimeCbidName(AIUpti_runtime_api_trace_cbid cbid) {
 
 void AiuptiActivityProfilerSession::handleRuntimeActivity(
     const AIUpti_ActivityAPI* activity, libkineto::ActivityLogger* logger) {
-  observedDeviceIds_.insert(activity->process_id);
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -198,6 +197,9 @@ void AiuptiActivityProfilerSession::handleRuntimeActivity(
   runtime_activity->startTime = activity->start;
   runtime_activity->endTime = activity->end;
   runtime_activity->id = activity->correlation_id;
+  // AIUpti_ActivityAPI has no device_id field — defer device assignment until
+  // all activities have been processed and correlationToDeviceId_ is populated.
+  // Use process_id as a temporary placeholder.
   runtime_activity->device = activity->process_id;
   // AIUpti_ActivityAPI has no stream_id — runtime activities remain on the
   // CPU thread resource.
@@ -238,20 +240,17 @@ void AiuptiActivityProfilerSession::handleRuntimeActivity(
       break;
   }
 
-  // checkTimestampOrder(&*runtime_activity);
-  // if (outOfRange(*runtime_activity)) {
-  //   traceBuffer_.span.opCount -= 1;
-  //   traceBuffer_.gpuOpCount -= 1;
-  //   removeCorrelatedPtiActivities(&*runtime_activity);
-  //   traceBuffer_.activities.pop_back();
-  //   return;
-  // }
-  runtime_activity->log(*logger);
+  // Do not log yet — defer until processTrace() has seen all other activity
+  // types and can resolve the correct device_id via correlationToDeviceId_.
+  pendingRuntimeActivities_.push_back(
+      std::move(traceBuffer_.activities.back()));
+  traceBuffer_.activities.pop_back();
 }
 
 void AiuptiActivityProfilerSession::handleKernelActivity(
     const AIUpti_ActivityCompute* activity, libkineto::ActivityLogger* logger) {
   observedDeviceIds_.insert(activity->device_id);
+  correlationToDeviceId_[activity->correlation_id] = activity->device_id;
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -389,6 +388,7 @@ template uint32_t AiuptiActivityProfilerSession::getResourceId<
 void AiuptiActivityProfilerSession::handleMemcpyActivity(
     const AIUpti_ActivityMemcpy* activity, libkineto::ActivityLogger* logger) {
   observedDeviceIds_.insert(activity->device_id);
+  correlationToDeviceId_[activity->correlation_id] = activity->device_id;
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   cpuCorrelationMap_[activity->correlation_id] = 0;  // fake add correlation
@@ -564,6 +564,7 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
 void AiuptiActivityProfilerSession::handleMemsetActivity(
     const AIUpti_ActivityMemset* activity, libkineto::ActivityLogger* logger) {
   observedDeviceIds_.insert(activity->device_id);
+  correlationToDeviceId_[activity->correlation_id] = activity->device_id;
   traceBuffer_.span.opCount += 1;
   traceBuffer_.gpuOpCount += 1;
   // TODO(mamaral): implement the libaiupti to add external correlation ID

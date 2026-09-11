@@ -112,6 +112,12 @@ class AiuptiActivityProfilerSession
   static std::vector<std::string> correlateRuntimeOps_;
 
   std::set<uint32_t> observedDeviceIds_;
+  // Maps correlation_id → device_id, populated by compute/memcpy/memset/memory
+  // handlers so runtime activities can resolve their device at flush time.
+  std::unordered_map<uint32_t, uint32_t> correlationToDeviceId_;
+  // Runtime activities are buffered here and flushed after all other activity
+  // types have been processed (so correlationToDeviceId_ is fully populated).
+  std::vector<std::unique_ptr<libkineto::GenericTraceActivity>> pendingRuntimeActivities_;
 
   int64_t captureWindowStartTime_{0};
   int64_t captureWindowEndTime_{0};
