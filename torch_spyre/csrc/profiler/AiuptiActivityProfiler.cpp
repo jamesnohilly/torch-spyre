@@ -111,24 +111,40 @@ bool AiuptiActivityProfilerSession::hasDeviceResource(uint32_t device,
   return resourceInfo_.find({device, id}) != resourceInfo_.end();
 }
 
-void AiuptiActivityProfilerSession::recordStream(uint32_t device, uint32_t id) {
-  DEBUGINFO("recordStream: device=", device, " id=", id);
-  if (!hasDeviceResource(device, id)) {
-    resourceInfo_.emplace(
-        std::make_pair(device, id),
-        libkineto::ResourceInfo(id, id, 0,
-                                fmt::format("Stream {}", id - 10)));
+void AiuptiActivityProfilerSession::recordStream(uint32_t device,
+                                                  uint32_t stream_id,
+                                                  StreamLane lane) {
+  const uint32_t resource = streamLaneResourceId(stream_id, lane);
+  const std::string label = streamLaneLabel(stream_id, lane);
+  DEBUGINFO("recordStream: device=", device, " stream_id=", stream_id,
+            " resource=", resource, " label=", label);
+  if (!hasDeviceResource(device, resource)) {
+    resourceInfo_.emplace(std::make_pair(device, resource),
+                          libkineto::ResourceInfo(resource, resource, 0, label));
   }
 }
 
 void AiuptiActivityProfilerSession::recordMemoryStream(uint32_t device,
-                                                        uint32_t id,
+                                                        uint32_t stream_id,
+                                                        StreamLane lane) {
+  const uint32_t resource = streamLaneResourceId(stream_id, lane);
+  const std::string label = streamLaneLabel(stream_id, lane);
+  DEBUGINFO("recordMemoryStream: device=", device, " stream_id=", stream_id,
+            " resource=", resource, " label=", label);
+  if (!hasDeviceResource(device, resource)) {
+    resourceInfo_.emplace(std::make_pair(device, resource),
+                          libkineto::ResourceInfo(resource, resource, 0, label));
+  }
+}
+
+void AiuptiActivityProfilerSession::recordMemoryStream(uint32_t device,
+                                                        uint32_t resource,
                                                         std::string name) {
-  DEBUGINFO("recordMemoryStream: device=", device, " id=", id, " name=", name);
-  if (!hasDeviceResource(device, id)) {
-    resourceInfo_.emplace(std::make_pair(device, id),
-                          libkineto::ResourceInfo(id, id, 0,
-                          fmt::format("Memory Stream {}", id - 10)));
+  DEBUGINFO("recordMemoryStream: device=", device, " resource=", resource,
+            " name=", name);
+  if (!hasDeviceResource(device, resource)) {
+    resourceInfo_.emplace(std::make_pair(device, resource),
+                          libkineto::ResourceInfo(resource, resource, 0, name));
   }
 }
 

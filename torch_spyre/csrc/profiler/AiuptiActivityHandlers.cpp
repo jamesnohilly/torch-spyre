@@ -198,8 +198,11 @@ void AiuptiActivityProfilerSession::handleRuntimeActivity(
   runtime_activity->endTime = activity->end;
   runtime_activity->id = activity->correlation_id;
   runtime_activity->device = activity->process_id;
+  // AIUpti_ActivityAPI has no stream_id — runtime activities remain on the
+  // CPU thread resource.
   runtime_activity->resource = libkineto::systemThreadId();
   runtime_activity->threadId = libkineto::threadId();
+
   // only enable outgoing flow for launch control block runtime activities
   if (activity->cbid == AIUPTI_RUNTIME_TRACE_CBID_LAUNCH_CB_CMPT) {
     runtime_activity->flow.id = activity->correlation_id;
@@ -260,11 +263,24 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
   kernel_activity->endTime = activity->end;
   kernel_activity->id = activity->correlation_id;
   kernel_activity->device = activity->device_id;
-  kernel_activity->resource = activity->stream_id;
-  kernel_activity->threadId = activity->stream_id + 10;
+
+  // Route to the per-stream lane based on operation_kind:
+  //   DMI  → H2D lane  (host-to-device DMA in)
+  //   DMO  → D2H lane  (device-to-host DMA out)
+  //   EXEC/PREP and everything else → Compute lane
+  StreamLane lane;
+  switch ((AIUpti_ActivityCmptKind)activity->operation_kind) {
+    case AIUPTI_ACTIVITY_KIND_DMI:  lane = StreamLane::H2D;     break;
+    case AIUPTI_ACTIVITY_KIND_DMO:  lane = StreamLane::D2H;     break;
+    default:                        lane = StreamLane::Compute; break;
+  }
+  const uint32_t resource = streamLaneResourceId(activity->stream_id, lane);
+  kernel_activity->resource = resource;
+  kernel_activity->threadId = resource;
   DEBUGINFO("handleKernelActivity: device=", activity->device_id,
             " stream_id=", activity->stream_id,
-            " resource=", kernel_activity->resource,
+            " operation_kind=", activity->operation_kind,
+            " resource=", resource,
             " name=", activity->name);
   kernel_activity->flow.id = activity->correlation_id;
   kernel_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
@@ -285,7 +301,7 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
     }
   }
 
-  recordStream(kernel_activity->device, kernel_activity->resource);
+  recordStream(kernel_activity->device, activity->stream_id, lane);
 
   // checkTimestampOrder(&*kernel_activity);
   // if (outOfRange(*kernel_activity)) {
@@ -383,11 +399,28 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->endTime = activity->end;
   memcpy_activity->id = activity->correlation_id;
   memcpy_activity->device = activity->device_id;
-  memcpy_activity->resource = getResourceId(activity);
-  memcpy_activity->threadId = activity->stream_id + 10;
+
+  // Route to the per-stream H2D or D2H lane based on copy direction.
+  // PtoP and unknown kinds fall back to the base stream_id resource.
+  StreamLane lane;
+  bool typed_lane;
+  switch ((AIUpti_ActivityMemcpyKind)activity->copy_kind) {
+    case AIUPTI_ACTIVITY_MEMCPY_KIND_HTOD:
+      lane = StreamLane::H2D; typed_lane = true;  break;
+    case AIUPTI_ACTIVITY_MEMCPY_KIND_DTOH:
+      lane = StreamLane::D2H; typed_lane = true;  break;
+    default:
+      lane = StreamLane::H2D; typed_lane = false; break;
+  }
+  uint32_t memcpy_resource = typed_lane
+      ? streamLaneResourceId(activity->stream_id, lane)
+      : getResourceId(activity);
+  memcpy_activity->resource = memcpy_resource;
+  memcpy_activity->threadId = memcpy_resource;
   DEBUGINFO("handleMemcpyActivity: device=", activity->device_id,
             " stream_id=", activity->stream_id,
-            " resource=", memcpy_activity->resource);
+            " copy_kind=", activity->copy_kind,
+            " resource=", memcpy_resource);
   memcpy_activity->flow.id = 0;
   memcpy_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
   memcpy_activity->flow.start = 0;
@@ -403,12 +436,13 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->addMetadata("memory bandwidth (GB/s)", bandwidth(activity));
   memcpy_activity->addMetadata("stream id", activity->stream_id);
 
-  if (memcpy_activity->resource == getBaseResourceId(activity)) {
-    recordMemoryStream(memcpy_activity->device, memcpy_activity->resource,
-                       fmt::format("Memcpy ({}):", memoryCopyOperationName(
-                                                       activity->copy_kind)));
+  // Register the named lane for this memcpy direction.
+  if (typed_lane) {
+    recordMemoryStream(memcpy_activity->device, activity->stream_id, lane);
   } else {
-    recordMemoryStream(memcpy_activity->device, memcpy_activity->resource, " ");
+    recordMemoryStream(memcpy_activity->device, memcpy_activity->resource,
+                       fmt::format("Memcpy ({}):",
+                                   memoryCopyOperationName(activity->copy_kind)));
   }
   // TODO(mamaral): verify if we can enable this
   // checkTimestampOrder(&*memcpy_activity);
