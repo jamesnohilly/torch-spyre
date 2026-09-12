@@ -292,7 +292,7 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
   kernel_activity->linked = linked;
   kernel_activity->addMetadata("queued", activity->queued);
   kernel_activity->addMetadata("submitted", activity->submitted);
-  kernel_activity->addMetadata("device", kernel_activity->deviceId());
+  kernel_activity->addMetadata("device", activity->device_id);
   kernel_activity->addMetadata("stream id", activity->stream_id);
   kernel_activity->addMetadataQuoted("context",
                                      std::to_string(activity->context_id));
@@ -433,7 +433,7 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->linked = linked;
   memcpy_activity->addMetadataQuoted(
       "call", memoryCopyOperationName(activity->copy_kind));
-  memcpy_activity->addMetadata("device", memcpy_activity->deviceId());
+  memcpy_activity->addMetadata("device", activity->device_id);
   memcpy_activity->addMetadataQuoted("context",
                                      std::to_string(activity->context_id));
   memcpy_activity->addMetadata("correlation", activity->correlation_id);
