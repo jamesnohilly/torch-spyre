@@ -17,6 +17,8 @@
  */
 #pragma once
 
+#include <cstdint>
+#include <fmt/format.h>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -28,6 +30,30 @@
 #include "AiuptiProfilerMacros.h"
 
 namespace KINETO_NAMESPACE {
+
+// Each hardware stream is split into three lanes in the trace view.
+// The composite resource ID is: stream_id * kLaneCount + lane_offset.
+// Lane offsets must be contiguous starting at 0.
+enum class StreamLane : uint32_t { H2D = 0, D2H = 1, Compute = 2 };
+static constexpr uint32_t kLaneCount = 3;
+
+// Pseudo-PID for host-initiated operations (memset, memory management).
+// Placed one slot after the largest possible device PID in the sort order.
+static constexpr int64_t kHostComputePid = libkineto::kExceedMaxPid + 1;
+
+inline uint32_t streamLaneResourceId(uint32_t stream_id, StreamLane lane) {
+  return stream_id * kLaneCount + static_cast<uint32_t>(lane);
+}
+
+inline std::string streamLaneLabel(uint32_t stream_id, StreamLane lane) {
+  const char* lane_name = nullptr;
+  switch (lane) {
+    case StreamLane::H2D:     lane_name = "H2D";     break;
+    case StreamLane::D2H:     lane_name = "D2H";     break;
+    case StreamLane::Compute: lane_name = "Compute"; break;
+  }
+  return fmt::format("Stream {} / {}", stream_id, lane_name);
+}
 
 class AiuptiActivityProfilerSession
     : public libkineto::IActivityProfilerSession {
@@ -89,6 +115,8 @@ class AiuptiActivityProfilerSession
   static std::vector<std::array<unsigned char, 16>> deviceUUIDs_;
   static std::vector<std::string> correlateRuntimeOps_;
 
+  std::set<uint32_t> observedDeviceIds_;
+
   int64_t captureWindowStartTime_{0};
   int64_t captureWindowEndTime_{0};
   int64_t profilerStartTs_{0};
@@ -108,13 +136,11 @@ class AiuptiActivityProfilerSession
   std::unique_ptr<const libkineto::Config> config_{nullptr};
   const std::set<libkineto::ActivityType>& activity_types_;
 
-  // Ensures control block streams come after memory activities
-  uint32_t kExceedMaxTid = 1000;
-
   std::map<std::pair<int64_t, int64_t>, libkineto::ResourceInfo> resourceInfo_;
   bool hasDeviceResource(uint32_t device, uint32_t id);
-  void recordStream(uint32_t device, uint32_t id);
-  void recordMemoryStream(uint32_t device, uint32_t id, std::string kind);
+  void recordStream(uint32_t device, uint32_t stream_id, StreamLane lane);
+  void recordMemoryStream(uint32_t device, uint32_t stream_id, StreamLane lane);
+  void recordMemoryStream(uint32_t device, uint32_t resource, std::string name);
 
   int64_t totalAllocatedBytes_{0};
 };
