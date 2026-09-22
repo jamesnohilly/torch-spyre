@@ -52,29 +52,28 @@ inline uint32_t streamLaneResourceId(uint32_t stream_id, StreamLane lane) {
   return stream_id * kLaneCount + static_cast<uint32_t>(lane);
 }
 
-inline std::string streamLaneLabel(uint32_t stream_id, StreamLane lane) {
-  const char* lane_name = nullptr;
+constexpr std::string_view streamLaneName(StreamLane lane) {
   switch (lane) {
     case StreamLane::H2D:
-      lane_name = "H2D";
-      break;
+      return "H2D";
     case StreamLane::D2H:
-      lane_name = "D2H";
-      break;
+      return "D2H";
     case StreamLane::Compute:
-      lane_name = "Compute";
-      break;
+      return "Compute";
     case StreamLane::MemMgmt:
-      lane_name = "Memory Management";
-      break;
+      return "Memory Management";
     case StreamLane::Unknown:
-      lane_name = "Unknown";
-      break;
     default:
-      lane_name = "Unknown";
-      break;
+      return "Unknown";
   }
-  return fmt::format("Stream {} / {}", stream_id, lane_name);
+}
+
+inline std::string streamLaneLabel(uint32_t stream_id, StreamLane lane) {
+  if (lane == StreamLane::MemMgmt) {
+    return "Memory Management";
+  }
+  
+  return fmt::format("Stream {} / {}", stream_id, streamLaneName(lane));
 }
 
 class AiuptiActivityProfilerSession
