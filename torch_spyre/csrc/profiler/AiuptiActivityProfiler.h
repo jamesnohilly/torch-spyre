@@ -17,8 +17,9 @@
  */
 #pragma once
 
-#include <cstdint>
 #include <fmt/format.h>
+
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -31,11 +32,17 @@
 
 namespace KINETO_NAMESPACE {
 
-// Each hardware stream is split into three lanes in the trace view.
+// Each hardware stream is split into five lanes in the trace view.
 // The composite resource ID is: stream_id * kLaneCount + lane_offset.
 // Lane offsets must be contiguous starting at 0.
-enum class StreamLane : uint32_t { H2D = 0, D2H = 1, Compute = 2 };
-static constexpr uint32_t kLaneCount = 3;
+enum class StreamLane : uint32_t {
+  H2D = 0,
+  D2H = 1,
+  Compute = 2,
+  MemMgmt = 3,
+  Unknown = 4
+};
+static constexpr uint32_t kLaneCount = 5;
 
 // Pseudo-PID for host-initiated operations (memset, memory management).
 // Placed one slot after the largest possible device PID in the sort order.
@@ -48,9 +55,24 @@ inline uint32_t streamLaneResourceId(uint32_t stream_id, StreamLane lane) {
 inline std::string streamLaneLabel(uint32_t stream_id, StreamLane lane) {
   const char* lane_name = nullptr;
   switch (lane) {
-    case StreamLane::H2D:     lane_name = "H2D";     break;
-    case StreamLane::D2H:     lane_name = "D2H";     break;
-    case StreamLane::Compute: lane_name = "Compute"; break;
+    case StreamLane::H2D:
+      lane_name = "H2D";
+      break;
+    case StreamLane::D2H:
+      lane_name = "D2H";
+      break;
+    case StreamLane::Compute:
+      lane_name = "Compute";
+      break;
+    case StreamLane::MemMgmt:
+      lane_name = "Memory Management";
+      break;
+    case StreamLane::Unknown:
+      lane_name = "Unknown";
+      break;
+    default:
+      lane_name = "Unknown";
+      break;
   }
   return fmt::format("Stream {} / {}", stream_id, lane_name);
 }
@@ -138,9 +160,9 @@ class AiuptiActivityProfilerSession
 
   std::map<std::pair<int64_t, int64_t>, libkineto::ResourceInfo> resourceInfo_;
   bool hasDeviceResource(uint32_t device, uint32_t id);
+  void ensureResource(uint32_t device, uint32_t stream_id, StreamLane lane);
   void recordStream(uint32_t device, uint32_t stream_id, StreamLane lane);
   void recordMemoryStream(uint32_t device, uint32_t stream_id, StreamLane lane);
-  void recordMemoryStream(uint32_t device, uint32_t resource, std::string name);
 
   int64_t totalAllocatedBytes_{0};
 };

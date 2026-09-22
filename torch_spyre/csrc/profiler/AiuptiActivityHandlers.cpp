@@ -346,9 +346,15 @@ void AiuptiActivityProfilerSession::handleKernelActivity(
   //   EXEC/PREP and everything else -> Compute lane
   StreamLane lane;
   switch ((AIUpti_ActivityCmptKind)activity->operation_kind) {
-    case AIUPTI_ACTIVITY_KIND_DMI:  lane = StreamLane::H2D;     break;
-    case AIUPTI_ACTIVITY_KIND_DMO:  lane = StreamLane::D2H;     break;
-    default:                        lane = StreamLane::Compute; break;
+    case AIUPTI_ACTIVITY_KIND_DMI:
+      lane = StreamLane::H2D;
+      break;
+    case AIUPTI_ACTIVITY_KIND_DMO:
+      lane = StreamLane::D2H;
+      break;
+    default:
+      lane = StreamLane::Compute;
+      break;
   }
 
   const uint32_t resource = streamLaneResourceId(activity->stream_id, lane);
@@ -407,16 +413,19 @@ inline std::string memoryCopyOperationName(uint8_t kind) {
   return "<unknown>";
 }
 
+// For PtoP and unknown copy kinds there is no typed H2D/D2H lane; route to
+// the Unknown lane so the resource ID stays within the stream_id * kLaneCount
+// scheme and cannot collide with IDs from another stream.
 inline uint32_t getBaseResourceId(const AIUpti_ActivityMemcpy* activity) {
-  return activity->stream_id;
+  return streamLaneResourceId(activity->stream_id, StreamLane::Unknown);
 }
 
 inline uint32_t getBaseResourceId(const AIUpti_ActivityMemory* activity) {
-  return 0;
+  return streamLaneResourceId(activity->stream_id, StreamLane::MemMgmt);
 }
 
 inline uint32_t getBaseResourceId(const AIUpti_ActivityMemset* activity) {
-  return 0;  // put memset and memory release on the same PID
+  return streamLaneResourceId(activity->stream_id, StreamLane::MemMgmt);
 }
 
 template <class memory_activity_type>
@@ -474,22 +483,25 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->device =
       static_cast<int32_t>(activity->device_id) + libkineto::kExceedMaxPid;
 
-  // Route to the per-stream H2D or D2H lane based on copy direction.
-  // PtoP and unknown kinds fall back to the base stream_id resource.
+  // Route to the per-stream lane based on copy direction.
+  // PtoP and unknown kinds fall back to the Unknown lane.
   StreamLane lane;
-  bool typed_lane;
   switch ((AIUpti_ActivityMemcpyKind)activity->copy_kind) {
     case AIUPTI_ACTIVITY_MEMCPY_KIND_HTOD:
-      lane = StreamLane::H2D; typed_lane = true;  break;
+      lane = StreamLane::H2D;
+      break;
     case AIUPTI_ACTIVITY_MEMCPY_KIND_DTOH:
-      lane = StreamLane::D2H; typed_lane = true;  break;
+      lane = StreamLane::D2H;
+      break;
     default:
-      lane = StreamLane::H2D; typed_lane = false; break;
+      lane = StreamLane::Unknown;
+      break;
   }
- 
-  uint32_t memcpy_resource = typed_lane
-      ? streamLaneResourceId(activity->stream_id, lane)
-      : getResourceId(activity);
+
+  uint32_t memcpy_resource =
+      (lane != StreamLane::Unknown)
+          ? streamLaneResourceId(activity->stream_id, lane)
+          : getResourceId(activity);
   memcpy_activity->resource = memcpy_resource;
   memcpy_activity->threadId = memcpy_resource;
   memcpy_activity->flow.id = 0;
@@ -508,13 +520,7 @@ void AiuptiActivityProfilerSession::handleMemcpyActivity(
   memcpy_activity->addMetadata("stream", activity->stream_id);
 
   // Register the named lane for this memcpy direction.
-  if (typed_lane) {
-    recordMemoryStream(memcpy_activity->device, activity->stream_id, lane);
-  } else {
-    recordMemoryStream(memcpy_activity->device, memcpy_activity->resource,
-                       fmt::format("Memcpy ({}):",
-                                   memoryCopyOperationName(activity->copy_kind)));
-  }
+  recordMemoryStream(memcpy_activity->device, activity->stream_id, lane);
   // TODO(mamaral): verify if we can enable this
   // checkTimestampOrder(&*memcpy_activity);
   // if (outOfRange(*memcpy_activity)) {
@@ -560,7 +566,7 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
     mem_activity->id = activity->correlation_id;
     mem_activity->device = kHostComputePid;
     mem_activity->resource = getResourceId(activity);
-    mem_activity->threadId = activity->stream_id + 10;
+    mem_activity->threadId = mem_activity->resource;
     mem_activity->flow.id = 0;
     mem_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
     mem_activity->flow.start = 0;
@@ -577,12 +583,8 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
     mem_activity->addMetadata("memory bandwidth (GB/s)", bandwidth(activity));
     mem_activity->addMetadata("stream", activity->stream_id);
 
-    if (mem_activity->resource == getBaseResourceId(activity)) {
-      recordMemoryStream(kHostComputePid, mem_activity->resource,
-                         "Memory management:");
-    } else {
-      recordMemoryStream(kHostComputePid, mem_activity->resource, " ");
-    }
+    recordMemoryStream(kHostComputePid, activity->stream_id,
+                       StreamLane::MemMgmt);
     // checkTimestampOrder(&*mem_activity);
     // if (outOfRange(*mem_activity)) {
     //   traceBuffer_.span.opCount -= 1;
@@ -644,7 +646,7 @@ void AiuptiActivityProfilerSession::handleMemsetActivity(
   // TODO(mcalman): investigate why memset activities are being processed out
   // of order This prevents us from using getResourceId which handles overlap
   memset_activity->resource = getBaseResourceId(activity);
-  memset_activity->threadId = activity->stream_id * 10;
+  memset_activity->threadId = memset_activity->resource;
   memset_activity->flow.id = 0;
   memset_activity->flow.type = libkineto::kLinkAsyncCpuGpu;
   memset_activity->flow.start = 0;
@@ -658,12 +660,7 @@ void AiuptiActivityProfilerSession::handleMemsetActivity(
   memset_activity->addMetadata("memory bandwidth (GB/s)", bandwidth(activity));
   memset_activity->addMetadata("stream", activity->stream_id);
 
-  if (memset_activity->resource == getBaseResourceId(activity)) {
-    recordMemoryStream(kHostComputePid, memset_activity->resource,
-                       "Memory management:");
-  } else {
-    recordMemoryStream(kHostComputePid, memset_activity->resource, " ");
-  }
+  recordMemoryStream(kHostComputePid, activity->stream_id, StreamLane::MemMgmt);
 
   // TODO(mamaral): verify if we can enable this
   // checkTimestampOrder(&*memset_activity);
