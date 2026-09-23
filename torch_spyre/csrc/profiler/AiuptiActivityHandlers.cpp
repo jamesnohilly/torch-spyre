@@ -581,7 +581,7 @@ void AiuptiActivityProfilerSession::handleMemoryActivity(
                               activity->memory_operation_type);
     mem_activity->addMetadata("bytes", activity->bytes);
     mem_activity->addMetadata("memory bandwidth (GB/s)", bandwidth(activity));
-    mem_activity->addMetadata("stream", activity->stream_id);
+    // mem_activity->addMetadata("stream", activity->stream_id);
 
     recordMemoryStream(kHostComputePid, activity->stream_id,
                        StreamLane::MemMgmt);
@@ -658,7 +658,7 @@ void AiuptiActivityProfilerSession::handleMemsetActivity(
   memset_activity->addMetadata("correlation", activity->correlation_id);
   memset_activity->addMetadata("bytes", activity->bytes);
   memset_activity->addMetadata("memory bandwidth (GB/s)", bandwidth(activity));
-  memset_activity->addMetadata("stream", activity->stream_id);
+  // memset_activity->addMetadata("stream", activity->stream_id);
 
   recordMemoryStream(kHostComputePid, activity->stream_id, StreamLane::MemMgmt);
 
