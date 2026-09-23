@@ -72,7 +72,7 @@ inline std::string streamLaneLabel(uint32_t stream_id, StreamLane lane) {
   if (lane == StreamLane::MemMgmt) {
     return "Memory Management";
   }
-  
+
   return fmt::format("Stream {} / {}", stream_id, streamLaneName(lane));
 }
 
